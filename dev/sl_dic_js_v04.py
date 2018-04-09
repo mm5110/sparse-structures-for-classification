@@ -5,6 +5,8 @@ import random
 
 import torch
 import torch.nn as nn
+import torchvision.datasets as dsets
+import torchvision.transforms as transforms
 from torch.autograd import Variable
 
 # COMPUTATION SETTINGS
@@ -18,6 +20,7 @@ dtype = torch.FloatTensor
 
 # FUNCTIONS
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # DATA FORMATTING FUNCTIONS
 # def vectorise_var(Y):
@@ -113,8 +116,6 @@ def calc_Lipshitz_constant(D, stride):
 	L = 2*np.asscalar(np.amax(eigen_vals, axis=None))
 	return L
 
-
-
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # DICTIONARY LEARNING FUNCTIONS
 def FISTA(Y, D, D_trans, T, L):
@@ -152,9 +153,9 @@ def FISTA(Y, D, D_trans, T, L):
 
 # def CGIHT(y, A, Lambda):
 
-def dictionary_update(D, D_trans, n):
-	old_weights = D.weight.data
-	new_weights = old_weights - n*
+# def dictionary_update(D, D_trans, n):
+# 	old_weights = D.weight.data
+# 	new_weights = old_weights - n*
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -180,39 +181,65 @@ def train_SL_CSC(Y, T, T_FISTA, stride, dp_channels, atom_r, atom_c, numb_atom):
 		X = FISTA(Y, D, D_trans, T_FISTA, L)
 
 
+
+# CLASSES
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# Neural Network Model (1 hidden layer)
+class SL_CSC(nn.Module):
+	def __init__(Y, T, T_FISTA, stride, dp_channels, atom_r, atom_c, numb_atom):
+		super(Net, self).__init__()
+		self.D_trans = nn.Conv2d(dp_channels, numb_atom, (atom_r, atom_c), stride, padding=0, dilation=1, groups=1, bias=False)
+		self.D = nn.ConvTranspose2d(numb_atom, dp_channels, (atom_c, atom_r), stride, padding=0, output_padding=0, groups=1, bias=False, dilation=1)
+		self.make_forward_backward_consistent()
+    
+	def forward(self, x):
+		out = self.D_trans(x)
+		return out
+
+	def backward(self, x):
+		 out = self.D(x)
+
+	def make_forward_backward_consistent(self):
+		D.weight.data=D_trans.weight.data.permute(0,1,3,2)
+    
+
 	
 
 # MAIN LOOP TESTING DICTIONARY LEARNING ON SYNTHETIC DATA
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Training Parameters
+num_epochs = 5
+batch_size = 100
+learning_rate = 0.001
+T = 1
+T_FISTA = 5
+stride = 1
+learning_rate = 0.001
+momentum
+
+# Local dictionary dimensions
+atom_r = 2
+atom_c = 2
+numb_atom = 3
+
 # Synthetic training data dimensions:
 numb_dp = 5
 dp_channels = 1
 dp_r = 28
 dp_c = 28
 
-# Local dictionary dimensions
-atom_r = 2
-atom_c = 2
-numb_atom = 3
-# numb_atom = 1*atom_r*atom_c 
-
-
-
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# MAIN PROGRAM - LEARN DICTIONARY AND LATENT REPRESENTATION FOR CLASSIFICIATION
-
-# Generate synthetic training data to train model
+# Generate synthetic training data to train model, Y is the training data or input to the classifier
 Y = Variable(torch.randn(numb_dp, dp_channels, dp_r, dp_c).type(dtype))
 
-# Set dictionary learning parameters
-# Number of iterations
-T = 1
-T_FISTA = 5
-stride = 1
+# Define SL-CSC model
+SSC = SL_CSC(Y, T, T_FISTA, stride, dp_channels, atom_r , atom_c, numb_atom)
 
-# Train SL-CSC model
-D = train_SL_CSC(Y, T, T_FISTA, stride, dp_channels, atom_r , atom_c, numb_atom)
+# Define training settings/ options
+cost_function = nn.MSELoss()
+optimizer = optim.SGD(SSC.parameters(), lr=learning_rate, momentum=momentum)  
+# optimizer = torch.optim.Adam(SSC.parameters(), lr=learning_rate)
+
 
 
 
