@@ -27,7 +27,23 @@ def soft_thresh(x, alpha):
 	y = Variable(torch.from_numpy(y_numpy))
 	return y
 
+def power_method(CSC, T_PM, Y):
+	print("Calculating Lipschitz constant using power method with " + repr(T_PM) + " iterations")
+	y_dims = list(Y.data.size())
+	w_dims = list(CSC.D_trans.weight.data.size())
+	# X = CSC.forward(Y)
+	X = Variable(torch.rand(y_dims[0], w_dims[0], (y_dims[2]-w_dims[2]+1),(y_dims[3]-w_dims[3]+1))+2)
+	for i in range(T_PM):
+		X = CSC.D_gram(X)
+		X = X/np.asscalar(np.sum((X*X).data.numpy()))
+	rayleigh_q = np.asscalar(np.sum((CSC.D_gram(X)*X).data.numpy())/np.sum((X*X).data.numpy()))
+	L = 2*rayleigh_q
+	print("L value calculated: " + repr(L))
+	return L
+
+
 def calc_Lipshitz_constant(D, stride):
+	print("Calculating Lipshitz constant by unpacking into matrix")
 	# Extract weights from pytorch conv2d class instance D
 	weights_numpy_array = np.squeeze(D.weight.data.numpy())
 	w_dims = weights_numpy_array.shape
@@ -61,67 +77,77 @@ def calc_Lipshitz_constant(D, stride):
 	# Since D^TD is a symmetric matrix we know that the eigenvalues must be real
 	eigen_vals = np.real(eigen_vals)
 	# We take the largest positive eigenvalue as out value for L
-	L = 2*np.asscalar(np.amax(eigen_vals, axis=None))
+	L = 2*np.asscalar(np.amax(np.abs(eigen_vals), axis=None))
+	print("L value calculated: " + repr(L))
 	return L
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # PRIMARY ALGORITHM FUNCTIONS
-def FISTA(Y, CSC, T, L):
-	print("Running FISTA to recover/ estimate sparse code")
-	# Initialise t variables needed for FISTA
-	t1 = 0
-	t2 = (1 + np.sqrt(1+4*(t1**2)))/2
-	# Initialise X1 Variable - note we need X1 and X2 as we need to use the prior two prior estimates for each update
-	X1 = CSC.forward(Y)
-	
-	# Minimizer argument
-	ST_arg = X1 - (2/L)*CSC.forward(CSC.backward(X1)-Y)
+def recover_sparse_code(Y, CSC, T, L, sparse_code_method):
+	if sparse_code_method == 'FISTA':
+		print("Running FISTA to recover/ estimate sparse code")
+		# Initialise t variables needed for FISTA
+		t1 = 0
+		t2 = (1 + np.sqrt(1+4*(t1**2)))/2
+		# Initialise X1 Variable - note we need X1 and X2 as we need to use the prior two prior estimates for each update
+		X1 = CSC.forward(Y)
+		
+		# Minimizer argument
+		ST_arg = X1 - (2/L)*CSC.forward(CSC.backward(X1)-Y)
 
-	for i in range(0,T):
-		# Calculate latest sparse code estimate
-		X2 = soft_thresh(ST_arg, (2/L))
-		print("Iteration: "+repr(i+1)+ ", Sparsity level: " +repr(X2.data.nonzero().numpy().shape[0]))
+		for i in range(0,T):
+			# Calculate latest sparse code estimate
+			X2 = soft_thresh(ST_arg, (2/L))
+			print("Iteration: "+repr(i+1)+ ", Sparsity level: " +repr(X2.data.nonzero().numpy().shape[0]))
 
-		# If this was not the last iteration then update variables needed for the next iteration
-		if i <T:
-			# Update t variables
-			t1 = t2
-			t2 = (1 + np.sqrt(1+4*(t1**2)))/2 
+			# If this was not the last iteration then update variables needed for the next iteration
+			if i <T:
+				# Update t variables
+				t1 = t2
+				t2 = (1 + np.sqrt(1+4*(t1**2)))/2 
 
-			# Update Z
-			Z = X2 + (X2-X1)*(t1 - 1)/t2
+				# Update Z
+				Z = X2 + (X2-X1)*(t1 - 1)/t2
 
-			# Construct minimizer argument to feed into the soft thresholding function
-			ST_arg = Z - (2/L)*CSC.forward((CSC.backward(Z)-Y))
+				# Construct minimizer argument to feed into the soft thresholding function
+				ST_arg = Z - (2/L)*CSC.forward((CSC.backward(Z)-Y))
 
-			# Update X1 to calculate next Z value
-			X1 = X2
+				# Update X1 to calculate next Z value
+				X1 = X2
 
-	# Return final iteration of sparse code
+	# Return sparse representation
 	return X2
 
+def update_dictionary(CSC, T_DIC, optimizer, cost_function, X, Y):
+	print("Running dictionary update")
+	# Update weight matrix
+	for i in range(T_DIC):
+		# Zero the gradient
+		optimizer.zero_grad()
+		# Calculate estimate of reconstructed Y
+		Y_recon = CSC.backward(X)
+		# Calculate loss according to the defined cost function between the true Y and reconstructed Y
+		loss = cost_function(Y_recon, Y)
+		print("Average loss per data point at iteration " +repr(i) + " :" + repr(np.asscalar(loss.data.numpy())))
+		# Calculate the gradient of the cost function wrt to each parameters
+		loss.backward()
+		# Update each parameter according to the optimizer update rule (single step)
+		optimizer.step()
+	CSC.make_forward_backward_consistent()
 
-def train_SL_CSC(Y, CSC, T, T_FISTA, T_DIC, stride, dp_channels, atom_r, atom_c, numb_atom, cost_function, optimizer):
+
+def train_SL_CSC(Y, CSC, T, T_SC, T_DIC, stride, sparse_code_method, cost_function, optimizer):
 	# Train network
 	for i in range(T):
-		# Calculate sparse code
-		L = 4
-		X = FISTA(Y, CSC, T_FISTA, L)
-		
-		print("Running dictionary update")
-		# Update weight matrix
-		for i in range(T_DIC):
-			# Zero the gradient
-			optimizer.zero_grad()
-			# Calculate estimate of reconstructed Y
-			Y_recon = CSC.backward(X)
-			# Calculate loss according to the defined cost function between the true Y and reconstructed Y
-			loss = cost_function(Y_recon, Y)
-			print("Average loss per data point at iteration " +repr(i) + " :" + repr(loss))
-			# Calculate the gradient of the cost function wrt to each parameters
-			loss.backward()
-			# Update each parameter according to the optimizer update rule (single step)
-			optimizer.step()
+		# Calculate Lipschitz constant of dictionary
+		L = power_method(CSC, 100, Y)
+		L2 = calc_Lipshitz_constant(CSC.D, stride)
+		# Fix dictionary and calculate sparse code
+		X = recover_sparse_code(Y, CSC, T_SC, L, sparse_code_method)
+		# Fix sparse code and update dictionary
+		update_dictionary(CSC, T_DIC, optimizer, cost_function, X, Y)
+	return CSC
+
 		
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # CSC Class
@@ -142,6 +168,10 @@ class SL_CSC(nn.Module):
 
 	def make_forward_backward_consistent(self):
 		self.D.weight.data=self.D_trans.weight.data.permute(0,1,3,2)
+
+	def D_gram(self, x):
+		out = self.D_trans(self.D(x))
+		return out
     
 
 	
@@ -154,7 +184,7 @@ class SL_CSC(nn.Module):
 # batch_size = 100
 learning_rate = 0.001
 T = 10
-T_FISTA = 5
+T_SC = 5
 T_DIC = 5
 stride = 1
 learning_rate = 0.001
@@ -175,15 +205,16 @@ dp_c = 28
 Y = Variable(torch.randn(numb_dp, dp_channels, dp_r, dp_c).type(dtype))
 
 # Intitilise Convolutional Sparse Coder CSC
-CSC = SL_CSC(T, T_FISTA, stride, dp_channels, atom_r, atom_c, numb_atom)
+CSC = SL_CSC(T, T_SC, stride, dp_channels, atom_r, atom_c, numb_atom)
 
 # Define training settings/ options
+sparse_code_method = 'FISTA'
 cost_function = nn.MSELoss()
 optimizer = torch.optim.SGD(CSC.parameters(), lr=learning_rate, momentum=momentum)  
 # optimizer = torch.optim.Adam(SSC.parameters(), lr=learning_rate)
 
 # Create Convolutional Sparse Coder
-CSC = train_SL_CSC(Y, CSC, T, T_FISTA, T_DIC, stride, dp_channels, atom_r, atom_c, numb_atom, cost_function, optimizer)
+CSC = train_SL_CSC(Y, CSC, T, T_SC, T_DIC, stride, sparse_code_method, cost_function, optimizer)
 
 
 
