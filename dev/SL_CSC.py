@@ -67,13 +67,15 @@ def calc_Lipshitz_constant(D, stride):
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # PRIMARY ALGORITHM FUNCTIONS
 def FISTA(Y, CSC, T, L):
+	print("Running FISTA to recover/ estimate sparse code")
 	# Initialise t variables needed for FISTA
 	t1 = 0
 	t2 = (1 + np.sqrt(1+4*(t1**2)))/2
 	# Initialise X1 Variable - note we need X1 and X2 as we need to use the prior two prior estimates for each update
 	X1 = CSC.forward(Y)
+	
 	# Minimizer argument
-	ST_arg = X1 - (2/L)*CSC.forward((CSC.backward(X1)-Y))
+	ST_arg = X1 - (2/L)*CSC.forward(CSC.backward(X1)-Y)
 
 	for i in range(0,T):
 		# Calculate latest sparse code estimate
@@ -99,21 +101,33 @@ def FISTA(Y, CSC, T, L):
 	return X2
 
 
-def train_SL_CSC(Y, CSC, T, T_FISTA, stride, dp_channels, atom_r, atom_c, numb_atom, cost_function, optimizer):
+def train_SL_CSC(Y, CSC, T, T_FISTA, T_DIC, stride, dp_channels, atom_r, atom_c, numb_atom, cost_function, optimizer):
 	# Train network
 	for i in range(T):
 		# Calculate sparse code
-		L = calc_Lipshitz_constant(CSC.D, stride)
+		L = 4
 		X = FISTA(Y, CSC, T_FISTA, L)
 		
-		# Udate weight matrix
-
+		print("Running dictionary update")
+		# Update weight matrix
+		for i in range(T_DIC):
+			# Zero the gradient
+			optimizer.zero_grad()
+			# Calculate estimate of reconstructed Y
+			Y_recon = CSC.backward(X)
+			# Calculate loss according to the defined cost function between the true Y and reconstructed Y
+			loss = cost_function(Y_recon, Y)
+			print("Average loss per data point at iteration " +repr(i) + " :" + repr(loss))
+			# Calculate the gradient of the cost function wrt to each parameters
+			loss.backward()
+			# Update each parameter according to the optimizer update rule (single step)
+			optimizer.step()
 		
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # CSC Class
 class SL_CSC(nn.Module):
-	def __init__(Y, T, T_FISTA, stride, dp_channels, atom_r, atom_c, numb_atom):
-		super(Net, self).__init__()
+	def __init__(self, T, T_FISTA, stride, dp_channels, atom_r, atom_c, numb_atom):
+		super(SL_CSC, self).__init__()
 		self.D_trans = nn.Conv2d(dp_channels, numb_atom, (atom_r, atom_c), stride, padding=0, dilation=1, groups=1, bias=False)
 		self.D = nn.ConvTranspose2d(numb_atom, dp_channels, (atom_c, atom_r), stride, padding=0, output_padding=0, groups=1, bias=False, dilation=1)
 		self.make_forward_backward_consistent()
@@ -124,9 +138,10 @@ class SL_CSC(nn.Module):
 
 	def backward(self, x):
 		 out = self.D(x)
+		 return out
 
 	def make_forward_backward_consistent(self):
-		D.weight.data=D_trans.weight.data.permute(0,1,3,2)
+		self.D.weight.data=self.D_trans.weight.data.permute(0,1,3,2)
     
 
 	
@@ -135,11 +150,12 @@ class SL_CSC(nn.Module):
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Training Parameters
-num_epochs = 5
-batch_size = 100
+# num_epochs = 5
+# batch_size = 100
 learning_rate = 0.001
-T = 1
+T = 10
 T_FISTA = 5
+T_DIC = 5
 stride = 1
 learning_rate = 0.001
 momentum = 0.9
@@ -159,15 +175,15 @@ dp_c = 28
 Y = Variable(torch.randn(numb_dp, dp_channels, dp_r, dp_c).type(dtype))
 
 # Intitilise Convolutional Sparse Coder CSC
-CSC = SL_CSC(Y, T, T_FISTA, stride, dp_channels, atom_r , atom_c, numb_atom)
+CSC = SL_CSC(T, T_FISTA, stride, dp_channels, atom_r, atom_c, numb_atom)
 
 # Define training settings/ options
 cost_function = nn.MSELoss()
-optimizer = torch.optim.SGD(SSC.parameters(), lr=learning_rate, momentum=momentum)  
+optimizer = torch.optim.SGD(CSC.parameters(), lr=learning_rate, momentum=momentum)  
 # optimizer = torch.optim.Adam(SSC.parameters(), lr=learning_rate)
 
 # Create Convolutional Sparse Coder
-CSC = train_SL_CSC(Y, CSC, T, T_FISTA, stride, dp_channels, atom_r, atom_c, numb_atom, cost_function, optimizer)
+CSC = train_SL_CSC(Y, CSC, T, T_FISTA, T_DIC, stride, dp_channels, atom_r, atom_c, numb_atom, cost_function, optimizer)
 
 
 
