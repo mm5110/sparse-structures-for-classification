@@ -93,7 +93,7 @@ def recover_sparse_code(Y, CSC, T, L, sparse_code_method):
 		X1 = CSC.forward(Y)
 		
 		# Minimizer argument
-		ST_arg = X1 - (2/L)*CSC.forward(CSC.backward(X1)-Y)
+		ST_arg = X1 - (2/L)*CSC.forward(CSC.reconstruct(X1)-Y)
 
 		for i in range(0,T):
 			# Calculate latest sparse code estimate
@@ -110,7 +110,7 @@ def recover_sparse_code(Y, CSC, T, L, sparse_code_method):
 				Z = X2 + (X2-X1)*(t1 - 1)/t2
 
 				# Construct minimizer argument to feed into the soft thresholding function
-				ST_arg = Z - (2/L)*CSC.forward((CSC.backward(Z)-Y))
+				ST_arg = Z - (2/L)*CSC.forward((CSC.reconstruct(Z)-Y))
 
 				# Update X1 to calculate next Z value
 				X1 = X2
@@ -125,22 +125,26 @@ def update_dictionary(CSC, T_DIC, optimizer, cost_function, X, Y):
 		# Zero the gradient
 		optimizer.zero_grad()
 		# Calculate estimate of reconstructed Y
-		Y_recon = CSC.backward(X)
+		Y_recon = CSC.reconstruct(X)
 		# Calculate loss according to the defined cost function between the true Y and reconstructed Y
 		loss = cost_function(Y_recon, Y)
 		print("Average loss per data point at iteration " +repr(i) + " :" + repr(np.asscalar(loss.data.numpy())))
 		# Calculate the gradient of the cost function wrt to each parameters
 		loss.backward()
+		print("D_trans gradients")
+		print(CSC.D.weight.grad)
 		# Update each parameter according to the optimizer update rule (single step)
 		optimizer.step()
-	CSC.make_forward_backward_consistent()
+		print("D_trans values post update")
+		print(CSC.D_trans.weight)
+	CSC.make_forward_recon_consistent()
 
 
 def train_SL_CSC(Y, CSC, T, T_SC, T_DIC, stride, sparse_code_method, cost_function, optimizer):
 	# Train network
 	for i in range(T):
 		# Calculate Lipschitz constant of dictionary
-		L = power_method(CSC, 100, Y)
+		L = power_method(CSC, 10, Y)
 		L2 = calc_Lipshitz_constant(CSC.D, stride)
 		# Fix dictionary and calculate sparse code
 		X = recover_sparse_code(Y, CSC, T_SC, L, sparse_code_method)
@@ -156,18 +160,19 @@ class SL_CSC(nn.Module):
 		super(SL_CSC, self).__init__()
 		self.D_trans = nn.Conv2d(dp_channels, numb_atom, (atom_r, atom_c), stride, padding=0, dilation=1, groups=1, bias=False)
 		self.D = nn.ConvTranspose2d(numb_atom, dp_channels, (atom_c, atom_r), stride, padding=0, output_padding=0, groups=1, bias=False, dilation=1)
-		self.make_forward_backward_consistent()
+		self.make_forward_recon_consistent()
     
 	def forward(self, x):
 		out = self.D_trans(x)
 		return out
 
-	def backward(self, x):
+	def reconstruct(self, x):
 		 out = self.D(x)
 		 return out
 
-	def make_forward_backward_consistent(self):
-		self.D.weight.data=self.D_trans.weight.data.permute(0,1,3,2)
+	def make_forward_recon_consistent(self):
+		# self.D.weight.data=self.D_trans.weight.data.permute(0,1,3,2)
+		self.D_trans.weight.data = self.D.weight.data.permute(0,1,3,2)
 
 	def D_gram(self, x):
 		out = self.D_trans(self.D(x))
@@ -187,7 +192,7 @@ T = 10
 T_SC = 5
 T_DIC = 5
 stride = 1
-learning_rate = 0.001
+learning_rate = 0.1
 momentum = 0.9
 
 # Local dictionary dimensions
@@ -213,7 +218,7 @@ cost_function = nn.MSELoss()
 optimizer = torch.optim.SGD(CSC.parameters(), lr=learning_rate, momentum=momentum)  
 # optimizer = torch.optim.Adam(SSC.parameters(), lr=learning_rate)
 
-# Create Convolutional Sparse Coder
+# Train Convolutional Sparse Coder
 CSC = train_SL_CSC(Y, CSC, T, T_SC, T_DIC, stride, sparse_code_method, cost_function, optimizer)
 
 
