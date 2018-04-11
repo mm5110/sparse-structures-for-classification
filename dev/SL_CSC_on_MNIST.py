@@ -55,13 +55,16 @@ def recover_sparse_code(Y, CSC, CSC_inv, T, L, sparse_code_method):
 		t1 = 0
 		t2 = (1 + np.sqrt(1+4*(t1**2)))/2
 		# Initialise X1 Variable - note we need X1 and X2 as we need to use the prior two prior estimates for each update
-		X1 = CSC.forward(Y)		
+		print(Y)
+		X1 = CSC.forward(Y)
+		print(X1)		
 		# Minimizer argument
 		ST_arg = X1 - (2/L)*CSC.forward(CSC_inv.forward(X1)-Y)
 		for i in range(0,T):
 			# Calculate latest sparse code estimate
 			X2 = soft_thresh(ST_arg, (2/L))
-			print("Iteration: "+repr(i+1)+ ", Sparsity level: " +repr(X2.data.nonzero().numpy().shape[0]))
+			if i%100 == 0:
+				print("Iteration: "+repr(i+1)+ ", Sparsity level: " +repr(X2.data.nonzero().numpy().shape[0]))
 			# If this was not the last iteration then update variables needed for the next iteration
 			if i <T:
 				# Update t variables
@@ -96,22 +99,24 @@ def update_dictionary(CSC, CSC_inv, T_DIC, optimizer, cost_function, X, Y):
 	make_consistent(CSC, CSC_inv)
 
 
-def train_SL_CSC(Y, CSC, CSC_inv, T, T_SC, T_DIC, stride, sparse_code_method, cost_function, optimizer):
-	# Train network
-	for i in range(T):
-		# Calculate Lipschitz constant of dictionary
-		L = power_method(CSC, CSC_inv, 20, Y)
-		# Fix dictionary and calculate sparse code
-		X = recover_sparse_code(Y, CSC, CSC_inv, T_SC, L, sparse_code_method)
-		# Fix sparse code and update dictionary
-		update_dictionary(CSC, CSC_inv, T_DIC, optimizer, cost_function, X, Y)
-	return CSC, CSC_inv
+def train_SL_CSC(train_loader, CSC, CSC_inv, num_epochs, T_SC, T_DIC, stride, sparse_code_method, cost_function, optimizer):
+	for epoch in range(num_epochs):
+		for i, (images, labels) in enumerate(train_loader):
+			images = Variable(images)
+			labels = Variable(labels)
+			# Calculate Lipschitz constant of dictionary
+			L = power_method(CSC, CSC_inv, 20, images)
+			# Fix dictionary and calculate sparse code
+			X = recover_sparse_code(images, CSC, CSC_inv, T_SC, L, sparse_code_method)
+			# Fix sparse code and update dictionary
+			update_dictionary(CSC, CSC_inv, T_DIC, optimizer, cost_function, X, images)
+		return CSC, CSC_inv
 
 		
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # CSC CLASSES AND CONSISTENCY FUNCTIONS
 class SL_CSC(nn.Module):
-	def __init__(self, T, T_FISTA, stride, dp_channels, atom_r, atom_c, numb_atom):
+	def __init__(self, stride, dp_channels, atom_r, atom_c, numb_atom):
 		super(SL_CSC, self).__init__()
 		self.D_trans = nn.Conv2d(dp_channels, numb_atom, (atom_r, atom_c), stride, padding=0, dilation=1, groups=1, bias=False)
     
@@ -121,7 +126,7 @@ class SL_CSC(nn.Module):
 
 
 class SL_CSC_inv(nn.Module):
-	def __init__(self, T, T_FISTA, stride, dp_channels, atom_r, atom_c, numb_atom):
+	def __init__(self, stride, dp_channels, atom_r, atom_c, numb_atom):
 		super(SL_CSC_inv, self).__init__()
 		self.D = nn.ConvTranspose2d(numb_atom, dp_channels, (atom_c, atom_r), stride, padding=0, output_padding=0, groups=1, bias=False, dilation=1)
     
@@ -148,41 +153,64 @@ def plot_image(img_tensor):
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Training Parameters
+num_epochs = 5
+batch_size = 100
 learning_rate = 0.001
-T = 5
-T_SC = 5
+T_SC = 1000
 T_DIC = 5
 stride = 1
 learning_rate = 0.001
 momentum = 0.9
+num_epochs = 1
 
 # Local dictionary dimensions
-atom_r = 2
-atom_c = 2
-numb_atom = 3
-
-# Synthetic training data dimensions:
-numb_dp = 5
-dp_channels = 1
-dp_r = 28
-dp_c = 28
+atom_r = 5
+atom_c = 5
+numb_atom = 100
+dp_channels = 1 
 
 # Generate synthetic training data to train model, Y is the training data or input to the classifier
-Y = Variable(torch.randn(numb_dp, dp_channels, dp_r, dp_c).type(dtype))
+# Y = Variable(torch.randn(numb_dp, dp_channels, dp_r, dp_c).type(dtype))
 
-# # Intitilise Convolutional Sparse Coder CSC
-CSC = SL_CSC(T, T_SC, stride, dp_channels, atom_r, atom_c, numb_atom)
-CSC_inv = SL_CSC_inv(T, T_SC, stride, dp_channels, atom_r, atom_c, numb_atom)
+# Load MNIST
+root = './data'
+download = False  # download MNIST dataset or not
+
+trans = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (1.0,))])
+train_set = dsets.MNIST(root=root, train=True, transform=trans, download=download)
+test_set = dsets.MNIST(root=root, train=False, transform=trans)
+
+train_loader = torch.utils.data.DataLoader(
+                 dataset=train_set,
+                 batch_size=batch_size,
+                 shuffle=True)
+test_loader = torch.utils.data.DataLoader(
+                dataset=test_set,
+                batch_size=batch_size,
+                shuffle=False)
+
+
+train_set_dims = list(train_set.train_data.size())
+print(train_set.train_data.size())               # (60000, 28, 28)
+print(train_set.train_labels.size())               # (60000)
+plt.imshow(train_set.train_data[4].numpy(), cmap='gray')
+plt.title('%i' % train_set.train_labels[4])
+# plt.show()
+
+
+# Intitilise Convolutional Sparse Coder CSC
+CSC = SL_CSC(stride, dp_channels, atom_r, atom_c, numb_atom)
+CSC_inv = SL_CSC_inv(stride, dp_channels, atom_r, atom_c, numb_atom)
 make_consistent(CSC, CSC_inv)
 
-# # Define training settings/ options
+# Define training settings/ options
 sparse_code_method = 'FISTA'
 cost_function = nn.MSELoss()
 optimizer = torch.optim.SGD(CSC_inv.parameters(), lr=learning_rate, momentum=momentum)
 # optimizer = torch.optim.Adam(SSC.parameters(), lr=learning_rate)
 
 # Train Convolutional Sparse Coder
-CSC, CSC_inv = train_SL_CSC(Y, CSC, CSC_inv, T, T_SC, T_DIC, stride, sparse_code_method, cost_function, optimizer)
+CSC, CSC_inv = train_SL_CSC(train_loader, CSC, CSC_inv, num_epochs, T_SC, T_DIC, stride, sparse_code_method, cost_function, optimizer)
 
 
 
