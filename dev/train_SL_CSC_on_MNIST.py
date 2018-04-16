@@ -24,23 +24,24 @@ import sparse_coding_classifier_functions as scc
 filename = "SL_CSC_FISTA"
 
 # Training hyperparameters
-num_epochs = 1 #100
-batch_size = 100
+num_epochs = 100 #100
+batch_size = 1000
 T_SC = 50
 T_DIC = 10
 T_PM = 8
 stride = 1
-learning_rate = 0.1
+learning_rate = 20
 momentum = 0.9
-num_epochs = 1
+num_epochs = 100
+weight_decay=0.0005
 
 # Set regulatrisation parameter for FISTA sparse coding step, set between 0 and 1 
-tau = 0.000001
+tau = 0.000015
 
 # Local dictionary dimensions
 atom_r = 28
 atom_c = 28
-numb_atom = 25
+numb_atom = 500
 dp_channels = 1 
 
 # Load MNIST
@@ -53,7 +54,7 @@ trans = transforms.Compose([transforms.ToTensor()])
 train_set = dsets.MNIST(root=root, train=True, transform=trans, download=download)
 test_set = dsets.MNIST(root=root, train=False, transform=trans)
 
-idx = list(range(100))
+idx = list(range(10000))
 train_sampler = SubsetRandomSampler(idx)
 print(train_sampler)
 
@@ -85,12 +86,12 @@ CSC_parameters = [
 
 # Define training settings/ options
 sparse_code_method = 'FISTA'
-cost_function = nn.MSELoss()
-optimizer = torch.optim.SGD(CSC_parameters, lr=learning_rate, momentum=momentum)
+cost_function = nn.MSELoss(size_average=True)
+optimizer = torch.optim.SGD(CSC_parameters, lr=learning_rate, momentum=momentum, weight_decay=weight_decay, nesterov=True)
 # optimizer = torch.optim.Adam(SSC.parameters(), lr=learning_rate)
 
 # Train Convolutional Sparse Coder
-CSC = scc.train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, optimizer)
+CSC = scc.train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, optimizer, batch_size)
 
 # Test reconstruction capabilities of trained CSC, first extract some test examples
 test_Y = Variable(torch.unsqueeze(test_set.test_data, dim=1), volatile=True).type(torch.FloatTensor)/255.   # shape from (2000, 28, 28) to (2000, 1, 28, 28), value in range(0,1)

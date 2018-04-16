@@ -68,8 +68,14 @@ def soft_thresh(x, alpha):
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # PRIMARY ALGORITHM FUNCTIONS
-def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, optimizer):	
-	print("Training SL-CSC. Batch size is: ")
+def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, optimizer, batch_size):	
+	print("Training SL-CSC. Batch size is: " + repr(batch_size))
+	# Initialise variables needed to plot a random sample of three kernels as they are trained
+	filter_dims = list(np.shape(CSC.D_trans.weight.data.numpy()))
+	idx = random.sample(range(0, filter_dims[0]), 3)
+	plt.ion()
+	plt.show()
+	print(idx)
 	for epoch in range(num_epochs):
 		print("Training epoch " + repr(epoch+1) + "of " + repr(num_epochs))
 		for i, (inputs, labels) in enumerate(train_loader):
@@ -84,15 +90,29 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, optimizer)
 			# Fix sparse code and update dictionary
 			print("Running dictionary update")
 			# Update weight matrix
-			for i in range(T_DIC):
+			for j in range(T_DIC):
 				# Zero the gradient
 				optimizer.zero_grad()
 				# Calculate estimate of reconstructed Y
 				inputs_recon = CSC.reverse(X)
 				# Calculate loss according to the defined cost function between the true Y and reconstructed Y
 				loss = cost_function(inputs_recon, inputs)
-				if (i+1)%20 == 0:
-					print("Average loss per data point at iteration " +repr(i+1) + " :" + repr(np.asscalar(loss.data.numpy())))
+				# At the end of each batch plot a random sample of kernels to observe progress
+				if (j+1)%10 == 0:
+					print("Average loss per data point at iteration " +repr(j+1) + " :" + repr(np.asscalar(loss.data.numpy())))
+					plt.figure(1)
+					plt.subplot(1,3,1)
+					plt.imshow((CSC.D_trans.weight[idx[0]][0].data.numpy()), cmap='gray')
+					plt.title("Filter "+repr(idx[0]))
+					plt.subplot(1,3,2)
+					plt.imshow((CSC.D_trans.weight[idx[1]][0].data.numpy()), cmap='gray', )
+					plt.title("Filter "+repr(idx[1]))
+					plt.xlabel("Epoch Number: " + repr(epoch)+ ", Batch number: " + repr(i+1) + ", Average loss: {0:1.4f}".format(np.asscalar(loss.data.numpy())))
+					plt.subplot(1,3,3)
+					plt.imshow((CSC.D_trans.weight[idx[2]][0].data.numpy()), cmap='gray')
+					plt.title("Filter "+repr(idx[2]))
+					plt.draw()
+					plt.pause(0.001)
 				# Calculate the gradient of the cost function wrt to each parameters
 				loss.backward()
 				# Update each parameter according to the optimizer update rule (single step)
@@ -101,6 +121,10 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, optimizer)
 			CSC.D_trans.weight.data = CSC.D.weight.data.permute(0,1,3,2)
 			# Update the step size value based off the last weights update
 			CSC.calc_step_size(input_dims)
+			
+			# Every now and then plot a few filters to observe progress
+			# if (i+1)%2 == 0:
+
 	return CSC
 
 		
@@ -136,7 +160,10 @@ class SL_CSC_FISTA(nn.Module):
 			# Calculate latest sparse code estimate
 			X2 = soft_thresh(ST_arg, self.step_size)
 			if (i+1)%10 == 0:
-				print("Iteration: "+repr(i+1)+ ", Sparsity level: " +repr(X2.data.nonzero().numpy().shape[0]))
+				av_num_zeros_per_image = X2.data.nonzero().numpy().shape[0]/y_dims[0]
+				percent_zeros_per_image = 100*av_num_zeros_per_image/(y_dims[2]*y_dims[3])
+				fista_error = np.sum((Y-self.reverse(X2)).data.numpy()**2) + self.tau*np.sum(np.abs(X2.data.numpy()))
+				print("Iteration: "+repr(i+1) + ", FISTA error: {0:1.2f}".format(fista_error) + ", Av. sparsity: {0:1.2f}".format(percent_zeros_per_image) +"%")
 			# If this was not the last iteration then update variables needed for the next iteration
 			if i < self.T_SC:
 				# Update t variables
