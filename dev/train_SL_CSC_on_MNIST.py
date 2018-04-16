@@ -1,8 +1,10 @@
 import numpy as np
 from numpy import linalg as LA
 import matplotlib.pyplot as plt
+
 import random
 import os
+import yaml
 
 import torch
 import torch.nn as nn
@@ -19,25 +21,25 @@ import sparse_coding_classifier_functions as scc
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Path to save model to
-save_path = os.getcwd() + "/trained_models/SL_CSC_FISTA.pt"
+filename = "SL_CSC_FISTA"
 
 # Training hyperparameters
-num_epochs = 1
-batch_size = 50
+num_epochs = 1 #100
+batch_size = 100
 T_SC = 50
 T_DIC = 10
 T_PM = 8
 stride = 1
-learning_rate = 0.001
+learning_rate = 0.1
 momentum = 0.9
 num_epochs = 1
 
 # Set regulatrisation parameter for FISTA sparse coding step, set between 0 and 1 
-tau = 0.001
+tau = 0.000001
 
 # Local dictionary dimensions
-atom_r = 7
-atom_c = 7
+atom_r = 28
+atom_c = 28
 numb_atom = 25
 dp_channels = 1 
 
@@ -51,7 +53,7 @@ trans = transforms.Compose([transforms.ToTensor()])
 train_set = dsets.MNIST(root=root, train=True, transform=trans, download=download)
 test_set = dsets.MNIST(root=root, train=False, transform=trans)
 
-idx = list(range(1000))
+idx = list(range(100))
 train_sampler = SubsetRandomSampler(idx)
 print(train_sampler)
 
@@ -73,14 +75,8 @@ train_set_dims = list(train_set.train_data.size())
 print(train_set.train_data.size())               # (60000, 28, 28)
 print(train_set.train_labels.size())               # (60000)
 
-# # Plot a single image from the MNIST dataset
-# plt.imshow(train_set.train_data[4].numpy(), cmap='gray')
-# plt.title('%i' % train_set.train_labels[4])
-# # plt.show()
-
-
 # Intitilise Convolutional Sparse Coder CSC
-CSC = scc.SL_CSC_FISTA(stride, dp_channels, atom_r, atom_c, numb_atom, tau, T_SC, T_PM)
+CSC = scc.SL_CSC_FISTA(stride, dp_channels, atom_r, atom_c, numb_atom, tau, T_SC, T_PM, step_size=1)
 
 # Define optimisation parameters
 CSC_parameters = [
@@ -110,7 +106,6 @@ orig_image3 = test_Y[2][0].data.numpy()
 recon_image1 = test_Y_recon[0][0].data.numpy()
 recon_image2 = test_Y_recon[1][0].data.numpy()
 recon_image3 = test_Y_recon[2][0].data.numpy()
-
 plt.figure(1)
 plt.subplot(3,2,1)
 plt.imshow(orig_image1, cmap='gray')
@@ -128,9 +123,8 @@ plt.subplot(3,2,6)
 plt.imshow(recon_image3, cmap='gray')
 plt.show()
 
-torch.save(CSC.state_dict(), save_path)
-
-
+# Save down model for future use
+scc.save_SLCSC_FISTA(CSC ,stride, dp_channels, atom_r, atom_c, numb_atom, filename)
 
 
 
