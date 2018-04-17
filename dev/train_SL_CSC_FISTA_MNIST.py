@@ -27,16 +27,16 @@ filename = "SL_CSC_FISTA"
 num_epochs = 100 #100
 batch_size = 1000
 T_SC = 50
-T_DIC = 10
+T_DIC = 6
 T_PM = 8
 stride = 1
-learning_rate = 20
+learning_rate = 1
 momentum = 0.9
 num_epochs = 100
 weight_decay=0.0005
 
 # Set regulatrisation parameter for FISTA sparse coding step, set between 0 and 1 
-tau = 0.000015
+tau = 0#0.00001
 
 # Local dictionary dimensions
 atom_r = 28
@@ -56,7 +56,6 @@ test_set = dsets.MNIST(root=root, train=False, transform=trans)
 
 idx = list(range(10000))
 train_sampler = SubsetRandomSampler(idx)
-print(train_sampler)
 
 train_loader = torch.utils.data.DataLoader(
                  dataset=train_set,
@@ -84,8 +83,8 @@ CSC_parameters = [
 {'params': CSC.D.parameters()}
 ]
 
+
 # Define training settings/ options
-sparse_code_method = 'FISTA'
 cost_function = nn.MSELoss(size_average=True)
 optimizer = torch.optim.SGD(CSC_parameters, lr=learning_rate, momentum=momentum, weight_decay=weight_decay, nesterov=True)
 # optimizer = torch.optim.Adam(SSC.parameters(), lr=learning_rate)
@@ -125,7 +124,7 @@ plt.imshow(recon_image3, cmap='gray')
 plt.show()
 
 # Save down model for future use
-scc.save_SLCSC_FISTA(CSC ,stride, dp_channels, atom_r, atom_c, numb_atom, filename)
+scc.save_SL_CSC_FISTA(CSC ,stride, dp_channels, atom_r, atom_c, numb_atom, filename)
 
 
 

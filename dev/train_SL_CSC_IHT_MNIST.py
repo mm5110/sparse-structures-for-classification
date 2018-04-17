@@ -16,11 +16,30 @@ from torch.utils.data.sampler import SubsetRandomSampler
 
 import sparse_coding_classifier_functions as scc
 
-# Provide data filename (both yml and pt file) in which the target model data is stored
-filename = "SL_CSC_FISTA"
+	
+# MAIN LOOP
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Path to save model to
+filename = "SL_CSC_IHT"
 
-# Testing parameters
-batch_size=10
+# Training hyperparameters
+num_epochs = 100 #100
+batch_size = 1000
+T_SC = 10
+T_DIC = 6
+stride = 1
+learning_rate = 1
+momentum = 0.9
+num_epochs = 100
+weight_decay=0.0005
+k = 20
+
+# Local dictionary dimensions
+atom_r = 28
+atom_c = 28
+numb_atom = 500
+dp_channels = 1 
 
 # Load MNIST
 root = './data'
@@ -29,15 +48,46 @@ download = False  # download MNIST dataset or not
 # Access MNIST dataset and define processing transforms to proces
 # trans = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (1.0,))])
 trans = transforms.Compose([transforms.ToTensor()])
+train_set = dsets.MNIST(root=root, train=True, transform=trans, download=download)
 test_set = dsets.MNIST(root=root, train=False, transform=trans)
+
+idx = list(range(10000))
+train_sampler = SubsetRandomSampler(idx)
+
+train_loader = torch.utils.data.DataLoader(
+                 dataset=train_set,
+                 batch_size=batch_size,
+                 sampler = train_sampler,
+                 shuffle=False)
+
 
 test_loader = torch.utils.data.DataLoader(
                 dataset=test_set,
                 batch_size=batch_size,
                 shuffle=False)
 
-# # Load in model
-CSC = scc.load_SLCSC_FISTA(filename)
+
+# Print out dimensions of training set
+train_set_dims = list(train_set.train_data.size())
+print(train_set.train_data.size())               # (60000, 28, 28)
+print(train_set.train_labels.size())               # (60000)
+
+# Intitilise Convolutional Sparse Coder CSC
+CSC = scc.SL_CSC_IHT(stride, dp_channels, atom_r, atom_c, numb_atom, T_SC, k)
+
+# Define optimisation parameters
+CSC_parameters = [
+{'params': CSC.D.parameters()}
+]
+
+
+# Define training settings/ options
+cost_function = nn.MSELoss(size_average=True)
+optimizer = torch.optim.SGD(CSC_parameters, lr=learning_rate, momentum=momentum, weight_decay=weight_decay, nesterov=True)
+# optimizer = torch.optim.Adam(SSC.parameters(), lr=learning_rate)
+
+# Train Convolutional Sparse Coder
+CSC = scc.train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, optimizer, batch_size)
 
 # Test reconstruction capabilities of trained CSC, first extract some test examples
 test_Y = Variable(torch.unsqueeze(test_set.test_data, dim=1), volatile=True).type(torch.FloatTensor)/255.   # shape from (2000, 28, 28) to (2000, 1, 28, 28), value in range(0,1)
@@ -70,6 +120,6 @@ plt.subplot(3,2,6)
 plt.imshow(recon_image3, cmap='gray')
 plt.show()
 
-
-
+# Save down model for future use
+scc.save_SL_CSC_IHT(CSC ,stride, dp_channels, atom_r, atom_c, numb_atom, filename)
 
