@@ -41,18 +41,22 @@ CSC = scc.load_SL_CSC_IHT(filename)
 
 # Test reconstruction capabilities of trained CSC, first extract some test examples
 test_Y = Variable(torch.unsqueeze(test_set.test_data, dim=1), volatile=True).type(torch.FloatTensor)/255.   # shape from (2000, 28, 28) to (2000, 1, 28, 28), value in range(0,1)
-test_Y =Variable(test_Y.data[:6])
+test_Y =Variable(test_Y.data[:10])
 #  Calculate the latent representation
 test_X = CSC.forward(test_Y)
 test_Y_recon = CSC.reverse(test_X)
 
+id1 = 2
+id2 = 7
+id3 = 9
+
 # Plot original images side by side with reconstructions to get feel for how successful training was
-orig_image1 = test_Y[0][0].data.numpy()
-orig_image2 = test_Y[4][0].data.numpy()
-orig_image3 = test_Y[5][0].data.numpy()
-recon_image1 = test_Y_recon[0][0].data.numpy()
-recon_image2 = test_Y_recon[4][0].data.numpy()
-recon_image3 = test_Y_recon[5][0].data.numpy()
+orig_image1 = test_Y[id1][0].data.numpy()
+orig_image2 = test_Y[id2][0].data.numpy()
+orig_image3 = test_Y[id3][0].data.numpy()
+recon_image1 = test_Y_recon[id1][0].data.numpy()
+recon_image2 = test_Y_recon[id2][0].data.numpy()
+recon_image3 = test_Y_recon[id3][0].data.numpy()
 
 plt.figure(1)
 plt.subplot(3,2,1)

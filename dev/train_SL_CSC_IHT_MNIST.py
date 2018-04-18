@@ -24,20 +24,20 @@ import sparse_coding_classifier_functions as scc
 filename = "SL_CSC_IHT"
 
 # Training hyperparameters
-num_epochs = 1 #100
+num_epochs = 5 #100
 batch_size = 1000
-T_SC = 15
-T_DIC = 15
+T_SC = 10
+T_DIC = 75
 stride = 1
 learning_rate = 0.8
 momentum = 0.9
 weight_decay=0.0005
-k = 20
+k = 30
 
 # Local dictionary dimensions
 atom_r = 28
 atom_c = 28
-numb_atom = 500
+numb_atom = 1000
 dp_channels = 1 
 
 # Load MNIST
@@ -50,14 +50,14 @@ trans = transforms.Compose([transforms.ToTensor()])
 train_set = dsets.MNIST(root=root, train=True, transform=trans, download=download)
 test_set = dsets.MNIST(root=root, train=False, transform=trans)
 
-idx = list(range(10000))
-train_sampler = SubsetRandomSampler(idx)
+# idx = list(range(10000))
+# train_sampler = SubsetRandomSampler(idx)
 
 train_loader = torch.utils.data.DataLoader(
                  dataset=train_set,
                  batch_size=batch_size,
-                 sampler = train_sampler,
-                 shuffle=False)
+                 sampler = None, #train_sampler
+                 shuffle=True) #False
 
 
 test_loader = torch.utils.data.DataLoader(
