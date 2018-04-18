@@ -114,8 +114,8 @@ def keep_k_largest(X, k):
 		temp[zero_inds]=0
 		# For back into a variable and return
 		X_new[i] = temp	
-	X_new = Variable(torch.from_numpy(X_new))
-	return X
+	X_new_var = Variable(torch.from_numpy(X_new).type(torch.FloatTensor))
+	return X_new_var
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -127,9 +127,8 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, optimizer,
 	idx = random.sample(range(0, filter_dims[0]), 3)
 	plt.ion()
 	plt.show()
-	print(idx)
 	for epoch in range(num_epochs):
-		print("Training epoch " + repr(epoch+1) + "of " + repr(num_epochs))
+		print("Training epoch " + repr(epoch+1) + " of " + repr(num_epochs))
 		for i, (inputs, labels) in enumerate(train_loader):
 			print("Batch number " + repr(i+1))
 			inputs = Variable(inputs)
@@ -154,7 +153,7 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, optimizer,
 				# Update each parameter according to the optimizer update rule (single step)
 				optimizer.step()
 				# At the end of each batch plot a random sample of kernels to observe progress
-				if (j+1)%1 == 0:
+				if (j+1)%5== 0:
 					print("Average loss per data point at iteration " +repr(j+1) + " :" + repr(np.asscalar(loss.data.numpy())))
 					plt.figure(1)
 					plt.subplot(1,3,1)
@@ -171,10 +170,6 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, optimizer,
 					plt.pause(0.001)
 			# Ensure that weights for the reverse and forward operations are consistent	
 			CSC.D_trans.weight.data = CSC.D.weight.data.permute(0,1,3,2)
-			print("D MATRIX:")
-			print(CSC.D.weight.data[0][0])
-			print("D _TRANS MATRIX:")
-			print(CSC.D_trans.weight.data[0][0])
 	# Return trained CSC
 	return CSC
 
@@ -210,7 +205,7 @@ class SL_CSC_FISTA(nn.Module):
 		for i in range(0, self.T_SC):
 			# Calculate latest sparse code estimate
 			X2 = soft_thresh(ST_arg, self.step_size)
-			if (i+1)%10 == 0:
+			if (i+1)%5 == 0:
 				av_num_zeros_per_image = X2.data.nonzero().numpy().shape[0]/y_dims[0]
 				percent_zeros_per_image = 100*av_num_zeros_per_image/(y_dims[2]*y_dims[3])
 				l2_error = np.sum((Y-self.reverse(X2)).data.numpy()**2)
@@ -274,14 +269,19 @@ class SL_CSC_IHT(nn.Module):
 		for i in range(0, self.T_SC):
 			# Hard threshold each image in the dataset
 			X = keep_k_largest(HT_arg, self.k)
-			print(X)
-			HT_arg = X - self.D_trans(self.D(X)-Y)
+			# Update HT arg as long as is not the last iteration
+			if i < self.T_SC:
+				HT_arg = X - self.D_trans(self.D(X)-Y)
 
-		# After run IHT print out the result
-		av_num_zeros_per_image = X.data.nonzero().numpy().shape[0]/y_dims[0]
-		percent_zeros_per_image = 100*av_num_zeros_per_image/(y_dims[2]*y_dims[3])
-		l2_error = np.sum((Y-self.reverse(X)).data.numpy()**2)
-		print("Iteration: "+repr(i+1) + ", l2 error:" + repr(l2_error) + ", Av. sparsity: {0:1.2f}".format(percent_zeros_per_image) +"%")
+			if (i+1)%5== 0:
+				# After run IHT print out the result
+				av_num_zeros_per_image = X.data.nonzero().numpy().shape[0]/y_dims[0]
+				percent_zeros_per_image = 100*av_num_zeros_per_image/(y_dims[2]*y_dims[3])
+				l2_error = np.sum((Y-self.reverse(X)).data.numpy()**2)
+				print("After " +repr(i+1) + " iterations of IHT, l2 error:" + repr(l2_error) + " , Av. sparsity: {0:1.2f}".format(percent_zeros_per_image) +"%")
+		return X		
+
+		
 
 	def reverse(self, x):
 		out = self.D(x)

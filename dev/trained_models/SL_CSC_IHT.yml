@@ -1,0 +1,7 @@
+T_SC: 15
+atom_c: 28
+atom_r: 28
+dp_channels: 1
+k: 20
+numb_atom: 500
+stride: 1

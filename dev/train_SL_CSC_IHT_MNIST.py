@@ -24,14 +24,13 @@ import sparse_coding_classifier_functions as scc
 filename = "SL_CSC_IHT"
 
 # Training hyperparameters
-num_epochs = 100 #100
+num_epochs = 1 #100
 batch_size = 1000
-T_SC = 10
-T_DIC = 6
+T_SC = 15
+T_DIC = 15
 stride = 1
-learning_rate = 1
+learning_rate = 0.8
 momentum = 0.9
-num_epochs = 100
 weight_decay=0.0005
 k = 20
 
@@ -80,7 +79,6 @@ CSC_parameters = [
 {'params': CSC.D.parameters()}
 ]
 
-
 # Define training settings/ options
 cost_function = nn.MSELoss(size_average=True)
 optimizer = torch.optim.SGD(CSC_parameters, lr=learning_rate, momentum=momentum, weight_decay=weight_decay, nesterov=True)
@@ -103,13 +101,14 @@ orig_image3 = test_Y[2][0].data.numpy()
 recon_image1 = test_Y_recon[0][0].data.numpy()
 recon_image2 = test_Y_recon[1][0].data.numpy()
 recon_image3 = test_Y_recon[2][0].data.numpy()
-plt.figure(1)
+
+plt.figure(2)
 plt.subplot(3,2,1)
 plt.imshow(orig_image1, cmap='gray')
-plt.title('Original Image');
+plt.title('Original Image')
 plt.subplot(3,2,2)
 plt.imshow(recon_image1, cmap='gray')
-plt.title('Reconstructed Image');
+plt.title('Reconstructed Image')
 plt.subplot(3,2,3)
 plt.imshow(orig_image2, cmap='gray')
 plt.subplot(3,2,4)
@@ -118,7 +117,7 @@ plt.subplot(3,2,5)
 plt.imshow(orig_image3, cmap='gray')
 plt.subplot(3,2,6)
 plt.imshow(recon_image3, cmap='gray')
-plt.show()
+plt.show(block = True)
 
 # Save down model for future use
 scc.save_SL_CSC_IHT(CSC ,stride, dp_channels, atom_r, atom_c, numb_atom, filename)
