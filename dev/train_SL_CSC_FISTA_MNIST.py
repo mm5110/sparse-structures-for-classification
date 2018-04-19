@@ -36,7 +36,7 @@ num_epochs = 100
 weight_decay=0.0005
 
 # Set regulatrisation parameter for FISTA sparse coding step, set between 0 and 1 
-tau = 0.00001
+tau = 1
 
 # Local dictionary dimensions
 atom_r = 28

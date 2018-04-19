@@ -21,13 +21,13 @@ import sparse_coding_classifier_functions as scc
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Path to save model to
-filename = "SL_CSC_IHT"
+filename = "SL_CSC_NIHT"
 
 # Training hyperparameters
-num_epochs = 5 #100
-batch_size = 100
-T_SC = 5
-T_DIC = 10
+num_epochs = 1 #100
+batch_size = 1000
+T_SC = 15
+T_DIC = 100
 stride = 1
 learning_rate = 0.6
 momentum = 0.9
@@ -72,7 +72,7 @@ print(train_set.train_data.size())               # (60000, 28, 28)
 print(train_set.train_labels.size())               # (60000)
 
 # Intitilise Convolutional Sparse Coder CSC
-CSC = scc.SL_CSC_IHT(stride, dp_channels, atom_r, atom_c, numb_atom, T_SC, k)
+CSC = scc.SL_CSC_NIHT(stride, dp_channels, atom_r, atom_c, numb_atom, T_SC, k)
 
 # Define optimisation parameters
 CSC_parameters = [
@@ -120,5 +120,5 @@ plt.imshow(recon_image3, cmap='gray')
 plt.show(block = True)
 
 # Save down model for future use
-scc.save_SL_CSC_IHT(CSC ,stride, dp_channels, atom_r, atom_c, numb_atom, filename)
+scc.save_SL_CSC_NIHT(CSC ,stride, dp_channels, atom_r, atom_c, numb_atom, filename)
 

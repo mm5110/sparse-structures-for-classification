@@ -252,13 +252,20 @@ class SL_CSC_FISTA(nn.Module):
 		print("Step size value calculated: " + repr(self.step_size))
 
 
+	def normalise_weights(self):
+		filter_dims = list(np.shape(self.D.weight.data.numpy()))
+		for i in range(filter_dims[0]):
+			for j in range(filter_dims[1]):
+				self.D.weight.data[i][j] = self.D.weight.data[i][j]/((np.sum(self.D.weight.data[i][j].numpy()**2))**0.5)
+
 
 
 class SL_CSC_NIHT(nn.Module):
 	def __init__(self, stride=1, dp_channels=1, atom_r=1, atom_c=1, numb_atom=1, T_SC=1, k=1):
-		super(SL_CSC_IHT, self).__init__()
+		super(SL_CSC_NIHT, self).__init__()
 		self.D_trans = nn.Conv2d(dp_channels, numb_atom, (atom_r, atom_c), stride, padding=0, dilation=1, groups=1, bias=False)
 		self.D = nn.ConvTranspose2d(numb_atom, dp_channels, (atom_c, atom_r), stride, padding=0, output_padding=0, groups=1, bias=False, dilation=1)
+		self.normalise_weights()
 		self.D_trans.weight.data = self.D.weight.data.permute(0,1,3,2)
 		self.k = k
 		self.T_SC=T_SC
@@ -273,9 +280,9 @@ class SL_CSC_NIHT(nn.Module):
 		X = Variable(torch.zeros(y_dims[0], w_dims[0], (y_dims[2]-w_dims[2]+1),(y_dims[3]-w_dims[3]+1)))
 		HT_arg = X + self.D_trans(Y-self.D(X))
 		for i in range(0, self.T_SC):
+			print(np.sum(X[0].data.numpy()**2))
 			# Hard threshold each image in the dataset
 			X = keep_k_largest(HT_arg, self.k)
-			# print(X)
 			# Update HT arg as long as is not the last iteration
 			if i < self.T_SC:
 				HT_arg = X + self.D_trans(Y-self.D(X))
