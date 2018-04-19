@@ -25,13 +25,13 @@ filename = "SL_CSC_IHT"
 
 # Training hyperparameters
 num_epochs = 5 #100
-batch_size = 1000
-T_SC = 10
-T_DIC = 75
+batch_size = 100
+T_SC = 5
+T_DIC = 10
 stride = 1
-learning_rate = 0.8
+learning_rate = 0.6
 momentum = 0.9
-weight_decay=0.0005
+weight_decay=0
 k = 30
 
 # Local dictionary dimensions

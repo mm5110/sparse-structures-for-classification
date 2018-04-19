@@ -17,7 +17,7 @@ from torch.utils.data.sampler import SubsetRandomSampler
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # SAVE AND LOAD FUNCTIONS
-def save_SL_CSC_IHT(CSC, stride, dp_channels, atom_r, atom_c, numb_atom, filename):
+def save_SL_CSC_NIHT(CSC, stride, dp_channels, atom_r, atom_c, numb_atom, filename):
 	torch_save_path = os.getcwd() + "/trained_models/" + filename + ".pt"
 	yml_save_path = os.getcwd() + "/trained_models/" + filename + ".yml"
 	# Save model parameters
@@ -35,7 +35,7 @@ def save_SL_CSC_IHT(CSC, stride, dp_channels, atom_r, atom_c, numb_atom, filenam
 	with open(yml_save_path, 'w') as yaml_file:
 		yaml.dump(other_CSC_variable_data, stream=yaml_file, default_flow_style=False)
 
-def load_SL_CSC_IHT(filename):
+def load_SL_CSC_NIHT(filename):
 	torch_load_path = os.getcwd() + "/trained_models/" + filename + ".pt"
 	yml_load_path = os.getcwd() + "/trained_models/" + filename + ".yml"
 	# Load in model
@@ -105,15 +105,17 @@ def keep_k_largest(X, k):
 	X_new = np.zeros((X_dims[0], X_dims[1], X_dims[2], X_dims[3]))	
 	for i in range(X_dims[0]):
 		# copy image data, want to sort elements only for a given image
-		temp = np.copy(X_numpy[i])
+		signs = np.sign(X_numpy[i])
+		abs_coeffs = np.absolute(np.copy(X_numpy[i]))
 		# extract a list of the ordered elements
-		inds_ordered = np.dstack(np.unravel_index(np.argsort(abs(temp).ravel()), (X_dims[1], X_dims[2], X_dims[3])))
+		inds_ordered = np.dstack(np.unravel_index(np.argsort(abs(abs_coeffs).ravel()), (X_dims[1], X_dims[2], X_dims[3])))
 		# group all but the k largest indices into a set to be zeroed
-		zero_inds = inds_ordered[0][:-k]
+		zi = inds_ordered[0][:-k]
 		# Zero all but the k largest entries of x
-		temp[zero_inds]=0
-		# For back into a variable and return
-		X_new[i] = temp	
+		for j in range(len(zi)):
+			abs_coeffs[zi[j][0]][zi[j][1]][zi[j][2]] = 0
+		# Multiply by the signs
+		X_new[i] = abs_coeffs*signs
 	X_new_var = Variable(torch.from_numpy(X_new).type(torch.FloatTensor))
 	return X_new_var
 
@@ -157,17 +159,19 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, optimizer,
 					print("Average loss per data point at iteration " +repr(j+1) + " :" + repr(np.asscalar(loss.data.numpy())))
 					plt.figure(1)
 					plt.subplot(1,3,1)
-					plt.imshow((CSC.D_trans.weight[idx[0]][0].data.numpy()), cmap='gray')
+					plt.imshow((CSC.D.weight[idx[0]][0].data.numpy()), cmap='gray')
 					plt.title("Filter "+repr(idx[0]))
 					plt.subplot(1,3,2)
-					plt.imshow((CSC.D_trans.weight[idx[1]][0].data.numpy()), cmap='gray', )
+					plt.imshow((CSC.D.weight[idx[1]][0].data.numpy()), cmap='gray', )
 					plt.title("Filter "+repr(idx[1]))
 					plt.xlabel("Epoch Number: " + repr(epoch)+ ", Batch number: " + repr(i+1) + ", Average loss: {0:1.4f}".format(np.asscalar(loss.data.numpy())))
 					plt.subplot(1,3,3)
-					plt.imshow((CSC.D_trans.weight[idx[2]][0].data.numpy()), cmap='gray')
+					plt.imshow((CSC.D.weight[idx[2]][0].data.numpy()), cmap='gray')
 					plt.title("Filter "+repr(idx[2]))
 					plt.draw()
-					plt.pause(0.001)
+					plt.pause(0.001)			
+			# Normalise each atom / kernel
+			CSC.normalise_weights()
 			# Ensure that weights for the reverse and forward operations are consistent	
 			CSC.D_trans.weight.data = CSC.D.weight.data.permute(0,1,3,2)
 	# Return trained CSC
@@ -181,6 +185,7 @@ class SL_CSC_FISTA(nn.Module):
 		super(SL_CSC_FISTA, self).__init__()
 		self.D_trans = nn.Conv2d(dp_channels, numb_atom, (atom_r, atom_c), stride, padding=0, dilation=1, groups=1, bias=False)
 		self.D = nn.ConvTranspose2d(numb_atom, dp_channels, (atom_c, atom_r), stride, padding=0, output_padding=0, groups=1, bias=False, dilation=1)
+		self.normalise_weights()
 		self.D_trans.weight.data = self.D.weight.data.permute(0,1,3,2)
 		self.tau = tau
 		self.step_size = step_size
@@ -249,7 +254,7 @@ class SL_CSC_FISTA(nn.Module):
 
 
 
-class SL_CSC_IHT(nn.Module):
+class SL_CSC_NIHT(nn.Module):
 	def __init__(self, stride=1, dp_channels=1, atom_r=1, atom_c=1, numb_atom=1, T_SC=1, k=1):
 		super(SL_CSC_IHT, self).__init__()
 		self.D_trans = nn.Conv2d(dp_channels, numb_atom, (atom_r, atom_c), stride, padding=0, dilation=1, groups=1, bias=False)
@@ -257,21 +262,23 @@ class SL_CSC_IHT(nn.Module):
 		self.D_trans.weight.data = self.D.weight.data.permute(0,1,3,2)
 		self.k = k
 		self.T_SC=T_SC
-		self.forward_type = 'IHT'
+		self.forward_type = 'NIHT'
+		self.gamma = 1
 
 	def forward(self, Y):
-		print("Running IHT")
+		print("Running NIHT")
 		y_dims = list(Y.data.size())
 		w_dims = list(self.D_trans.weight.data.size())
 		# Randomly initialise X
-		X = Variable(torch.randn(y_dims[0], w_dims[0], (y_dims[2]-w_dims[2]+1),(y_dims[3]-w_dims[3]+1)))
-		HT_arg = X - self.D_trans(self.D(X)-Y)
+		X = Variable(torch.zeros(y_dims[0], w_dims[0], (y_dims[2]-w_dims[2]+1),(y_dims[3]-w_dims[3]+1)))
+		HT_arg = X + self.D_trans(Y-self.D(X))
 		for i in range(0, self.T_SC):
 			# Hard threshold each image in the dataset
 			X = keep_k_largest(HT_arg, self.k)
+			# print(X)
 			# Update HT arg as long as is not the last iteration
 			if i < self.T_SC:
-				HT_arg = X - self.D_trans(self.D(X)-Y)
+				HT_arg = X + self.D_trans(Y-self.D(X))
 
 			if (i+1)%5== 0:
 				# After run IHT print out the result
@@ -279,13 +286,18 @@ class SL_CSC_IHT(nn.Module):
 				percent_zeros_per_image = 100*av_num_zeros_per_image/(y_dims[2]*y_dims[3])
 				l2_error = np.sum((Y-self.reverse(X)).data.numpy()**2)
 				print("After " +repr(i+1) + " iterations of IHT, l2 error:" + repr(l2_error) + " , Av. sparsity: {0:1.2f}".format(percent_zeros_per_image) +"%")
-		return X		
-
-		
+		return X				
 
 	def reverse(self, x):
 		out = self.D(x)
 		return out
+
+	def normalise_weights(self):
+		filter_dims = list(np.shape(self.D.weight.data.numpy()))
+		for i in range(filter_dims[0]):
+			for j in range(filter_dims[1]):
+				self.D.weight.data[i][j] = self.D.weight.data[i][j]/((np.sum(self.D.weight.data[i][j].numpy()**2))**0.5)
+			
 		
 
 

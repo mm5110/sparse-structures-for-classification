@@ -27,16 +27,16 @@ filename = "SL_CSC_FISTA"
 num_epochs = 100 #100
 batch_size = 1000
 T_SC = 50
-T_DIC = 6
+T_DIC = 100
 T_PM = 8
 stride = 1
-learning_rate = 1
+learning_rate = 0.7
 momentum = 0.9
 num_epochs = 100
 weight_decay=0.0005
 
 # Set regulatrisation parameter for FISTA sparse coding step, set between 0 and 1 
-tau = 0#0.00001
+tau = 0.00001
 
 # Local dictionary dimensions
 atom_r = 28
@@ -54,14 +54,14 @@ trans = transforms.Compose([transforms.ToTensor()])
 train_set = dsets.MNIST(root=root, train=True, transform=trans, download=download)
 test_set = dsets.MNIST(root=root, train=False, transform=trans)
 
-idx = list(range(10000))
-train_sampler = SubsetRandomSampler(idx)
+# idx = list(range(10000))
+# train_sampler = SubsetRandomSampler(idx)
 
 train_loader = torch.utils.data.DataLoader(
                  dataset=train_set,
                  batch_size=batch_size,
-                 sampler = train_sampler,
-                 shuffle=False)
+                 sampler = None, #train_sampler,
+                 shuffle=True)
 
 
 test_loader = torch.utils.data.DataLoader(
