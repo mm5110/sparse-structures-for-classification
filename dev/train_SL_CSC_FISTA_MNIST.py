@@ -36,7 +36,7 @@ num_epochs = 100
 weight_decay=0
 
 # Weight importance of sparsity vs. reconstruction
-tau = 6
+tau = 0.9
 
 # Local dictionary dimensions
 atom_r = 28
@@ -76,7 +76,7 @@ print(train_set.train_data.size())               # (60000, 28, 28)
 print(train_set.train_labels.size())               # (60000)
 
 # Intitilise Convolutional Sparse Coder CSC
-CSC = scc.SL_CSC_FISTA(stride, dp_channels, atom_r, atom_c, numb_atom, tau, T_SC, T_PM)
+CSC = scc.SL_CSC_FISTA_backtracking(stride, dp_channels, atom_r, atom_c, numb_atom, tau, T_SC, T_PM)
 
 # Define optimisation parameters
 CSC_parameters = [
