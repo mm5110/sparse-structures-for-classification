@@ -25,14 +25,13 @@ filename = "SL_CSC_FISTA"
 
 # Training hyperparameters
 num_epochs = 1 #100
-batch_size = 1000
-T_SC = 50
-T_DIC = 100
+batch_size = 2000
+T_SC = 15
+T_DIC = 60
 T_PM = 8
 stride = 1
 learning_rate = 3
 momentum = 0.9
-num_epochs = 100
 weight_decay=0
 
 # Weight importance of sparsity vs. reconstruction
@@ -54,14 +53,14 @@ trans = transforms.Compose([transforms.ToTensor()])
 train_set = dsets.MNIST(root=root, train=True, transform=trans, download=download)
 test_set = dsets.MNIST(root=root, train=False, transform=trans)
 
-# idx = list(range(10000))
-# train_sampler = SubsetRandomSampler(idx)
+idx = list(range(10000))
+train_sampler = SubsetRandomSampler(idx)
 
 train_loader = torch.utils.data.DataLoader(
                  dataset=train_set,
                  batch_size=batch_size,
-                 sampler = None, #train_sampler,
-                 shuffle=True)
+                 sampler = train_sampler,# None
+                 shuffle=False) #True
 
 
 test_loader = torch.utils.data.DataLoader(
@@ -76,7 +75,7 @@ print(train_set.train_data.size())               # (60000, 28, 28)
 print(train_set.train_labels.size())               # (60000)
 
 # Intitilise Convolutional Sparse Coder CSC
-CSC = scc.SL_CSC_FISTA_backtracking(stride, dp_channels, atom_r, atom_c, numb_atom, tau, T_SC, T_PM)
+CSC = scc.SL_CSC_FISTA(stride, dp_channels, atom_r, atom_c, numb_atom, tau, T_SC, T_PM)
 
 # Define optimisation parameters
 CSC_parameters = [
@@ -106,7 +105,7 @@ orig_image3 = test_Y[2][0].data.numpy()
 recon_image1 = test_Y_recon[0][0].data.numpy()
 recon_image2 = test_Y_recon[1][0].data.numpy()
 recon_image3 = test_Y_recon[2][0].data.numpy()
-plt.figure(1)
+plt.figure(2)
 plt.subplot(3,2,1)
 plt.imshow(orig_image1, cmap='gray')
 plt.title('Original Image');

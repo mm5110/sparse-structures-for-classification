@@ -25,9 +25,9 @@ filename = "SL_CSC_NIHT"
 
 # Training hyperparameters
 num_epochs = 1 #100
-batch_size = 1000
-T_SC = 15
-T_DIC = 100
+batch_size = 2000
+T_SC = 5
+T_DIC = 60
 stride = 1
 learning_rate = 0.6
 momentum = 0.9
@@ -50,14 +50,14 @@ trans = transforms.Compose([transforms.ToTensor()])
 train_set = dsets.MNIST(root=root, train=True, transform=trans, download=download)
 test_set = dsets.MNIST(root=root, train=False, transform=trans)
 
-# idx = list(range(10000))
-# train_sampler = SubsetRandomSampler(idx)
+idx = list(range(10000))
+train_sampler = SubsetRandomSampler(idx)
 
 train_loader = torch.utils.data.DataLoader(
                  dataset=train_set,
                  batch_size=batch_size,
-                 sampler = None, #train_sampler
-                 shuffle=True) #False
+                 sampler = train_sampler, #None
+                 shuffle=False) #True
 
 
 test_loader = torch.utils.data.DataLoader(
@@ -120,5 +120,5 @@ plt.imshow(recon_image3, cmap='gray')
 plt.show(block = True)
 
 # Save down model for future use
-scc.save_SL_CSC_NIHT(CSC ,stride, dp_channels, atom_r, atom_c, numb_atom, filename)
+scc.save_SL_CSC_IHT(CSC ,stride, dp_channels, atom_r, atom_c, numb_atom, filename)
 

@@ -17,10 +17,10 @@ from torch.utils.data.sampler import SubsetRandomSampler
 import sparse_coding_classifier_functions as scc
 
 # Provide data filename (both yml and pt file) in which the target model data is stored
-filename = "SL_CSC_IHT"
+filename = "SL_CSC_NIHT"
 
 # Testing parameters
-batch_size=10
+batch_size=80
 
 # Load MNIST
 root = './data'
@@ -41,14 +41,14 @@ CSC = scc.load_SL_CSC_IHT(filename)
 
 # Test reconstruction capabilities of trained CSC, first extract some test examples
 test_Y = Variable(torch.unsqueeze(test_set.test_data, dim=1), volatile=True).type(torch.FloatTensor)/255.   # shape from (2000, 28, 28) to (2000, 1, 28, 28), value in range(0,1)
-test_Y =Variable(test_Y.data[:10])
+test_Y =Variable(test_Y.data[:80])
 #  Calculate the latent representation
 test_X = CSC.forward(test_Y)
 test_Y_recon = CSC.reverse(test_X)
 
-id1 = 2
-id2 = 7
-id3 = 9
+id1 = 42
+id2 = 65
+id3 = 37
 
 # Plot original images side by side with reconstructions to get feel for how successful training was
 orig_image1 = test_Y[id1][0].data.numpy()
