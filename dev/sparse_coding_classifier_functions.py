@@ -109,9 +109,9 @@ def hard_threshold_k(X, k):
 		# extract a list of the ordered elements
 		inds_ordered = np.dstack(np.unravel_index(np.argsort(abs(abs_coeffs).ravel()), (X_dims[1], X_dims[2], X_dims[3])))
 		# Identify the support of the k largest elements
-		sup = inds_ordered[0][-k:0]
+		sup = inds_ordered[0][-k:]
 		# Update X_new all but the k largest entries of x
-		for j in range(len(support)):
+		for j in range(len(sup)):
 			X_new[i][sup[j][0]][sup[j][1]][sup[j][2]] = X_numpy[i][sup[j][0]][sup[j][1]][sup[j][2]]
 	X_out = Variable(torch.from_numpy(X_new).type(torch.FloatTensor))
 	return X_out, sup
@@ -186,9 +186,9 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, optimizer,
 		
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # CSC CLASSES AND CONSISTENCY FUNCTIONS
-class SL_CSC_FISTA(nn.Module):
+class SL_CSC_FISTA_backtracking(nn.Module):
 	def __init__(self, stride=1, dp_channels=1, atom_r=1, atom_c=1, numb_atom=1, tau=1, T_SC=1, T_PM=1):
-		super(SL_CSC_FISTA, self).__init__()
+		super(SL_CSC_FISTA_backtracking, self).__init__()
 		self.D_trans = nn.Conv2d(dp_channels, numb_atom, (atom_r, atom_c), stride, padding=0, dilation=1, groups=1, bias=False)
 		self.D = nn.ConvTranspose2d(numb_atom, dp_channels, (atom_c, atom_r), stride, padding=0, output_padding=0, groups=1, bias=False, dilation=1)
 		self.normalise_weights()
@@ -210,7 +210,7 @@ class SL_CSC_FISTA(nn.Module):
 		# Calculate first update
 		X2, FISTA_error, alpha = self.linesearch(Y,X1)
 		# Iterate FISTA for a prescribed number of iterations
-		print("Number of iterations for FISTA: " + repr(self.T_SC))
+		print("Number of iterations running FISTA for: " + repr(self.T_SC))
 		for i in range(0, self.T_SC):
 			# Update t variables
 			t2 = (1 + np.sqrt(1+4*(t1**2)))/2 
@@ -252,7 +252,7 @@ class SL_CSC_FISTA(nn.Module):
 		update_cost = np.sum((Y-self.D(X_update)).data.numpy()**2) + self.tau*np.sum(np.abs(X.data.numpy()))
 		# While the cost at the next location is higher than the current one iterate
 		count = 0
-		while update_cost >= current_cost or count<=8:
+		while update_cost >= current_cost and count<=10:
 			alpha = alpha*c
 			ST_arg = X + alpha*g
 			X_update = soft_thresh(ST_arg, self.tau*alpha)
@@ -274,7 +274,9 @@ class SL_CSC_FISTA(nn.Module):
 				else:
 					print("Kernel with 0 l2 norm identified, setting to zero")
 					self.D.weight.data[i][j] = torch.zeros(filter_dims[2], filter_dims[3])
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 class SL_CSC_FISTA_fixed_step(nn.Module):
 	def __init__(self, stride=1, dp_channels=1, atom_r=1, atom_c=1, numb_atom=1, tau=1, T_SC=1, T_PM=1, step_size=1):
@@ -353,16 +355,16 @@ class SL_CSC_FISTA_fixed_step(nn.Module):
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-class SL_CSC_NIHT(nn.Module):
+class SL_CSC_IHT_backtracking(nn.Module):
 	def __init__(self, stride=1, dp_channels=1, atom_r=1, atom_c=1, numb_atom=1, T_SC=1, k=1):
-		super(SL_CSC_NIHT, self).__init__()
+		super(SL_CSC_IHT_backtracking, self).__init__()
 		self.D_trans = nn.Conv2d(dp_channels, numb_atom, (atom_r, atom_c), stride, padding=0, dilation=1, groups=1, bias=False)
 		self.D = nn.ConvTranspose2d(numb_atom, dp_channels, (atom_c, atom_r), stride, padding=0, output_padding=0, groups=1, bias=False, dilation=1)
 		self.normalise_weights()
 		self.D_trans.weight.data = self.D.weight.data.permute(0,1,3,2)
 		self.k = k
 		self.T_SC=T_SC
-		self.forward_type = 'NIHT'
+		self.forward_type = 'IHT'
 
 	def forward(self, Y):
 		print("Running NIHT")
@@ -370,35 +372,19 @@ class SL_CSC_NIHT(nn.Module):
 		w_dims = list(self.D_trans.weight.data.size())
 		# Initialise X as zerio tensor
 		X = Variable(torch.zeros(y_dims[0], w_dims[0], (y_dims[2]-w_dims[2]+1),(y_dims[3]-w_dims[3]+1)))
-		HT_arg = self.D_trans(Y)
+		# X = self.D_trans(Y)
 		for i in range(0, self.T_SC):
-			print(np.sum(X[0].data.numpy()**2))
+			# print(np.sum(X[0].data.numpy()**2))
 			# Hard threshold each image in the dataset
-			X, sup = hard_threshold_k(HT_arg, self.k)
-			# Update HT arg as long as is not the last iteration
-			if i < self.T_SC:
-				HT_arg = X + self.alpha*self.D_trans(Y-self.D(X))
-
+			X, l2_error, alpha = self.linesearch(Y,X)
 			if (i+1)%5== 0:
 				# After run IHT print out the result
 				av_num_zeros_per_image = X.data.nonzero().numpy().shape[0]/y_dims[0]
 				percent_zeros_per_image = 100*av_num_zeros_per_image/(y_dims[2]*y_dims[3])
-				l2_error = np.sum((Y-self.reverse(X)).data.numpy()**2)
 				print("After " +repr(i+1) + " iterations of IHT, l2 error:" + repr(l2_error) + " , Av. sparsity: {0:1.2f}".format(percent_zeros_per_image) +"%")
 		return X
 
-	# def forward(self, Y):
-	# 	print("Running NIHT")
-	# 	y_dims = list(Y.data.size())
-	# 	w_dims = list(self.D_trans.weight.data.size())
-	# 	# Initialise x as variable containing zero tensor
-	# 	X = Variable(torch.zeros(y_dims[0], w_dims[0], (y_dims[2]-w_dims[2]+1),(y_dims[3]-w_dims[3]+1)))
-	# 	temp, sup = hard_threshold_k(self.D_trans(Y), self.k)
-	# 	for i in range(self.T_SC):
-	# 		g = self.D_trans(y - self.D(X))
-	# 		g_supp = 
-	# 		mu = (np.sum(g.data.numpy()**2))/(np.sum(self.D(g))) 
-
+	
 	def reverse(self, x):
 		out = self.D(x)
 		return out
@@ -408,8 +394,66 @@ class SL_CSC_NIHT(nn.Module):
 		for i in range(filter_dims[0]):
 			for j in range(filter_dims[1]):
 				self.D.weight.data[i][j] = self.D.weight.data[i][j]/((np.sum(self.D.weight.data[i][j].numpy()**2))**0.5)
+
+
+	def linesearch(self,Y,X):
+		# Define search parameter for Armijo method
+		c = 0.5
+		alpha = 1
+		g = self.D_trans(Y-self.D(X))
+		HT_arg = X + alpha*g
+		X_update, sup = hard_threshold_k(HT_arg, self.k)
+		# Calculate cost of current X location
+		l2_error_start = np.sum((Y-self.D(X)).data.numpy()**2)
+		# Calculate cost of first suggested update
+		l2_error = np.sum((Y-self.D(X_update)).data.numpy()**2)
+		# While the cost at the next location is higher than the current one iterate up to a count of 8
+		count = 0
+		while l2_error >= l2_error_start  and count<=10:
+			alpha = alpha*c
+			HT_arg = X + alpha*g
+			X_update, sup = hard_threshold_k(HT_arg, self.k)
+			l2_error = np.sum((Y-self.D(X_update)).data.numpy()**2)
+			count +=1
+		print("l2 error at end of linesearch step:{0:1.2f}".format(l2_error))
+		return X_update, l2_error, alpha
 			
-		
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+# class SL_CSC_NIHT(nn.Module):
+# 	def __init__(self, stride=1, dp_channels=1, atom_r=1, atom_c=1, numb_atom=1, T_SC=1, k=1):
+# 		super(SL_CSC_NIHT, self).__init__()
+# 		self.D_trans = nn.Conv2d(dp_channels, numb_atom, (atom_r, atom_c), stride, padding=0, dilation=1, groups=1, bias=False)
+# 		self.D = nn.ConvTranspose2d(numb_atom, dp_channels, (atom_c, atom_r), stride, padding=0, output_padding=0, groups=1, bias=False, dilation=1)
+# 		self.normalise_weights()
+# 		self.D_trans.weight.data = self.D.weight.data.permute(0,1,3,2)
+# 		self.k = k
+# 		self.T_SC=T_SC
+# 		self.forward_type = 'IHT'
+
+# 	def forward(self, Y):
+# 		print("Running NIHT")
+# 		y_dims = list(Y.data.size())
+# 		w_dims = list(self.D_trans.weight.data.size())
+# 		# Initialise x as variable containing zero tensor
+# 		X = Variable(torch.zeros(y_dims[0], w_dims[0], (y_dims[2]-w_dims[2]+1),(y_dims[3]-w_dims[3]+1)))
+# 		temp, sup = hard_threshold_k(self.D_trans(Y), self.k)
+# 		for i in range(self.T_SC):
+# 			g = self.D_trans(y - self.D(X))
+# 			g_supp = 
+# 			mu = (np.sum(g.data.numpy()**2))/(np.sum(self.D(g)))
+# 			# WIP
+
+# 	def reverse(self, x):
+# 		out = self.D(x)
+# 		return out
+
+# 	def normalise_weights(self):
+# 		filter_dims = list(np.shape(self.D.weight.data.numpy()))
+# 		for i in range(filter_dims[0]):
+# 			for j in range(filter_dims[1]):
+# 				self.D.weight.data[i][j] = self.D.weight.data[i][j]/((np.sum(self.D.weight.data[i][j].numpy()**2))**0.5)	
 
 
 

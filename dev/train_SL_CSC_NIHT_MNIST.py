@@ -72,7 +72,7 @@ print(train_set.train_data.size())               # (60000, 28, 28)
 print(train_set.train_labels.size())               # (60000)
 
 # Intitilise Convolutional Sparse Coder CSC
-CSC = scc.SL_CSC_NIHT(stride, dp_channels, atom_r, atom_c, numb_atom, T_SC, k)
+CSC = scc.SL_CSC_IHT_backtracking(stride, dp_channels, atom_r, atom_c, numb_atom, T_SC, k)
 
 # Define optimisation parameters
 CSC_parameters = [
