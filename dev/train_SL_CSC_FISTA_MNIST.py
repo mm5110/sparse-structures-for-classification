@@ -24,19 +24,19 @@ import sparse_coding_classifier_functions as scc
 filename = "SL_CSC_FISTA"
 
 # Training hyperparameters
-num_epochs = 100 #100
+num_epochs = 1 #100
 batch_size = 1000
 T_SC = 50
 T_DIC = 100
 T_PM = 8
 stride = 1
-learning_rate = 0.7
+learning_rate = 3
 momentum = 0.9
 num_epochs = 100
-weight_decay=0.0005
+weight_decay=0
 
-# Set regulatrisation parameter for FISTA sparse coding step, set between 0 and 1 
-tau = 1
+# Weight importance of sparsity vs. reconstruction
+tau = 6
 
 # Local dictionary dimensions
 atom_r = 28
@@ -76,7 +76,7 @@ print(train_set.train_data.size())               # (60000, 28, 28)
 print(train_set.train_labels.size())               # (60000)
 
 # Intitilise Convolutional Sparse Coder CSC
-CSC = scc.SL_CSC_FISTA(stride, dp_channels, atom_r, atom_c, numb_atom, tau, T_SC, T_PM, step_size=1)
+CSC = scc.SL_CSC_FISTA(stride, dp_channels, atom_r, atom_c, numb_atom, tau, T_SC, T_PM)
 
 # Define optimisation parameters
 CSC_parameters = [
