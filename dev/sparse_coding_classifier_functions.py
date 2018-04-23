@@ -162,8 +162,8 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, optimizer,
 				# Update each parameter according to the optimizer update rule (single step)
 				optimizer.step()
 				# At the end of each batch plot a random sample of kernels to observe progress
-				if j==0 or j%10 == 0:
-					print("Average loss per data point at iteration " +repr(j+1) + " :" + repr(np.asscalar(loss.data.numpy())))
+				if j==0 or (j+1)%20 == 0:
+					print("Average loss per data point at iteration {0:1.0f}".format(j+1) + " of SGD: {0:1.4f}".format(np.asscalar(loss.data.numpy())))
 					plt.figure(1)
 					plt.subplot(1,3,1)
 					plt.imshow((CSC.D.weight[idx[0]][0].data.numpy()), cmap='gray')
@@ -177,6 +177,9 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, optimizer,
 					plt.title("Filter "+repr(idx[2]))
 					plt.draw()
 					plt.pause(0.001)			
+			
+			l2_error_percent = 100*np.sum((inputs-CSC.D(X)).data.numpy()**2)/ np.sum((inputs).data.numpy()**2)
+			print("After " +repr(j+1) + " iterations of SGD, average l2 error over batch: {0:1.2f}".format(l2_error_percent) + "%")
 			# Normalise each atom / kernel
 			CSC.normalise_weights()
 			# Ensure that weights for the reverse and forward operations are consistent	
@@ -194,6 +197,7 @@ class SL_CSC_FISTA(nn.Module):
 		super(SL_CSC_FISTA, self).__init__()
 		self.D_trans = nn.Conv2d(dp_channels, numb_atom, (atom_r, atom_c), stride, padding=0, dilation=1, groups=1, bias=False)
 		self.D = nn.ConvTranspose2d(numb_atom, dp_channels, (atom_c, atom_r), stride, padding=0, output_padding=0, groups=1, bias=False, dilation=1)
+		self.dropout = nn.Dropout2d(p=0.5, inplace=False)
 		self.normalise_weights()
 		self.D_trans.weight.data = self.D.weight.data.permute(0,1,3,2)
 		self.tau = tau
@@ -226,12 +230,15 @@ class SL_CSC_FISTA(nn.Module):
 			X1 = X2.clone() #untoggle
 			t1 = t2
 			# Print at intervals to present progress
-			if i==0 or i%10 == 0:
+			if i==0 or (i+1)%5 == 0:
 				av_num_zeros_per_image = X2.data.nonzero().numpy().shape[0]/y_dims[0]
 				percent_zeros_per_image = 100*av_num_zeros_per_image/(y_dims[2]*y_dims[3])
 				l2_error = np.sum((Y-self.D(X2)).data.numpy()**2)
 				l1_error = np.sum(np.abs(X2.data.numpy()))
-				print("Iteration: "+repr(i) + ", l2 error:{0:1.2f}".format(l2_error) + ", l1 error: {0:1.2f}".format(l1_error) + ", alpha value: {0:1.2f}".format(alpha)+ ", Total FISTA error: {0:1.2f}".format(FISTA_error) + ", Av. sparsity: {0:1.2f}".format(percent_zeros_per_image) +"%")
+				# pix_error = l2_error/(y_dims[0]*y_dims[2]*y_dims[3])
+				error_percent = l2_error*100/(np.sum((Y).data.numpy()**2))
+				# print("Iteration: "+repr(i) + ", l2 error:{0:1.2f}".format(l2_error) + ", l1 error: {0:1.2f}".format(l1_error) + ", l2 error percent: {0:1.2f}".format(error_percent)+ "%, Total FISTA error: {0:1.2f}".format(FISTA_error) + ", Av. sparsity: {0:1.2f}".format(percent_zeros_per_image) +"%")
+				print("After " +repr(i+1) + " iterations of FISTA, average l2 error over batch: {0:1.2f}".format(error_percent) + "% , Av. sparsity per image: {0:1.2f}".format(percent_zeros_per_image) +"%")
 		return X2
 
 
@@ -243,7 +250,7 @@ class SL_CSC_FISTA(nn.Module):
 		# Define search parameter for Armijo method
 		c = 0.5
 		alpha = 1
-		g = self.D_trans(Y-self.D(X))
+		g = self.D_trans(Y-self.dropout(self.D(X)))
 		ST_arg = X + alpha*g
 		X_update = soft_thresh(ST_arg, self.tau*alpha)
 		# Calculate cost of current X location
@@ -255,7 +262,7 @@ class SL_CSC_FISTA(nn.Module):
 		update_cost = np.sum((Y-self.D(X_update)).data.numpy()**2) + self.tau*np.sum(np.abs(X.data.numpy()))
 		# While the cost at the next location is higher than the current one iterate
 		count = 0
-		while update_cost >= current_cost and count<=10:
+		while update_cost >= current_cost and count<=15:
 			alpha = alpha*c
 			ST_arg = X + alpha*g
 			X_update = soft_thresh(ST_arg, self.tau*alpha)
@@ -285,6 +292,7 @@ class SL_CSC_IHT(nn.Module):
 	def __init__(self, stride=1, dp_channels=1, atom_r=1, atom_c=1, numb_atom=1, T_SC=1, k=1):
 		super(SL_CSC_IHT, self).__init__()
 		self.D_trans = nn.Conv2d(dp_channels, numb_atom, (atom_r, atom_c), stride, padding=0, dilation=1, groups=1, bias=False)
+		self.dropout = nn.Dropout2d(p=0.5, inplace=False)
 		self.D = nn.ConvTranspose2d(numb_atom, dp_channels, (atom_c, atom_r), stride, padding=0, output_padding=0, groups=1, bias=False, dilation=1)
 		self.normalise_weights()
 		self.D_trans.weight.data = self.D.weight.data.permute(0,1,3,2)
@@ -293,7 +301,7 @@ class SL_CSC_IHT(nn.Module):
 		self.forward_type = 'IHT'
 
 	def forward(self, Y):
-		print("Running NIHT")
+		print("Running IHT")
 		y_dims = list(Y.data.size())
 		w_dims = list(self.D_trans.weight.data.size())
 		# Initialise X as zerio tensor
@@ -303,11 +311,13 @@ class SL_CSC_IHT(nn.Module):
 			# print(np.sum(X[0].data.numpy()**2))
 			# Hard threshold each image in the dataset
 			X, l2_error, alpha = self.linesearch(Y,X)
-			if (i+1)%5== 0:
+			if i==0 or (i+1)%5 == 0:
 				# After run IHT print out the result
 				av_num_zeros_per_image = X.data.nonzero().numpy().shape[0]/y_dims[0]
 				percent_zeros_per_image = 100*av_num_zeros_per_image/(y_dims[2]*y_dims[3])
-				print("After " +repr(i+1) + " iterations of IHT, l2 error:" + repr(l2_error) + " , Av. sparsity: {0:1.2f}".format(percent_zeros_per_image) +"%")
+				# pix_error = l2_error/(y_dims[0]*y_dims[2]*y_dims[3])
+				error_percent = l2_error*100/(np.sum((Y).data.numpy()**2))
+				print("After " +repr(i+1) + " iterations of IHT, average l2 error over batch: {0:1.2f}".format(error_percent) + "% , Av. sparsity per image: {0:1.2f}".format(percent_zeros_per_image) +"%")
 		return X
 
 	
@@ -326,7 +336,7 @@ class SL_CSC_IHT(nn.Module):
 		# Define search parameter for Armijo method
 		c = 0.5
 		alpha = 1
-		g = self.D_trans(Y-self.D(X))
+		g = self.D_trans(Y-self.dropout(self.D(X)))
 		HT_arg = X + alpha*g
 		X_update, sup = hard_threshold_k(HT_arg, self.k)
 		# Calculate cost of current X location
@@ -335,13 +345,13 @@ class SL_CSC_IHT(nn.Module):
 		l2_error = np.sum((Y-self.D(X_update)).data.numpy()**2)
 		# While the cost at the next location is higher than the current one iterate up to a count of 8
 		count = 0
-		while l2_error >= l2_error_start  and count<=10:
+		while l2_error >= l2_error_start  and count<=15:
 			alpha = alpha*c
 			HT_arg = X + alpha*g
 			X_update, sup = hard_threshold_k(HT_arg, self.k)
 			l2_error = np.sum((Y-self.D(X_update)).data.numpy()**2)
 			count +=1
-		print("l2 error at end of linesearch step:{0:1.2f}".format(l2_error))
+		# print("l2 error at end of linesearch step:{0:1.2f}".format(l2_error))
 		return X_update, l2_error, alpha
 			
 

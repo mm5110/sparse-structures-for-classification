@@ -26,7 +26,7 @@ filename = "SL_CSC_FISTA"
 # Training hyperparameters
 num_epochs = 1 #100
 batch_size = 2000
-T_SC = 15
+T_SC = 10
 T_DIC = 60
 T_PM = 8
 stride = 1
