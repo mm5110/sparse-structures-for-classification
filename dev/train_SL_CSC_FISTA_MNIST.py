@@ -16,7 +16,8 @@ from torch.utils.data.sampler import SubsetRandomSampler
 
 import sparse_coding_classifier_functions as scc
 
-	
+from AuxiliaryFunctions import showFilters
+
 # MAIN LOOP
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -26,8 +27,8 @@ filename = "SL_CSC_FISTA"
 # Training hyperparameters
 num_epochs = 1 #100
 batch_size = 2000
-T_SC = 10
-T_DIC = 60
+T_SC = 50
+T_DIC = 10
 T_PM = 8
 stride = 1
 learning_rate = 3
@@ -40,7 +41,7 @@ tau = 0.9
 # Local dictionary dimensions
 atom_r = 28
 atom_c = 28
-numb_atom = 500
+numb_atom = 100
 dp_channels = 1 
 
 # Load MNIST
@@ -122,8 +123,15 @@ plt.subplot(3,2,6)
 plt.imshow(recon_image3, cmap='gray')
 plt.show()
 
+
 # Save down model for future use
 scc.save_SL_CSC_FISTA(CSC ,stride, dp_channels, atom_r, atom_c, numb_atom, filename)
 
+from skimage.transform import rescale, resize, downscale_local_mean
 
-
+D = CSC.D.weight.data.numpy()
+M = showFilters(D,10,10)
+plt.figure(figsize=(30,30))
+plt.imshow(rescale(M,4,mode='constant'),cmap='gray')
+plt.axis('off')
+plt.show()
