@@ -197,7 +197,7 @@ class SL_CSC_FISTA(nn.Module):
 		super(SL_CSC_FISTA, self).__init__()
 		self.D_trans = nn.Conv2d(dp_channels, numb_atom, (atom_r, atom_c), stride, padding=0, dilation=1, groups=1, bias=False)
 		self.D = nn.ConvTranspose2d(numb_atom, dp_channels, (atom_c, atom_r), stride, padding=0, output_padding=0, groups=1, bias=False, dilation=1)
-		self.dropout = nn.Dropout2d(p=0.5, inplace=False)
+		# self.dropout = nn.Dropout2d(p=0.5, inplace=False)
 		self.normalise_weights()
 		self.D_trans.weight.data = self.D.weight.data.permute(0,1,3,2)
 		self.tau = tau
@@ -230,7 +230,7 @@ class SL_CSC_FISTA(nn.Module):
 			X1 = X2.clone() #untoggle
 			t1 = t2
 			# Print at intervals to present progress
-			if i==0 or (i+1)%5 == 0:
+			if i==0 or (i+1)%10 == 0:
 				av_num_zeros_per_image = X2.data.nonzero().numpy().shape[0]/y_dims[0]
 				percent_zeros_per_image = 100*av_num_zeros_per_image/(y_dims[2]*y_dims[3])
 				l2_error = np.sum((Y-self.D(X2)).data.numpy()**2)
@@ -250,7 +250,7 @@ class SL_CSC_FISTA(nn.Module):
 		# Define search parameter for Armijo method
 		c = 0.5
 		alpha = 1
-		g = self.D_trans(Y-self.dropout(self.D(X)))
+		g = self.D_trans(Y-self.D(X))
 		ST_arg = X + alpha*g
 		X_update = soft_thresh(ST_arg, self.tau*alpha)
 		# Calculate cost of current X location
@@ -292,7 +292,7 @@ class SL_CSC_IHT(nn.Module):
 	def __init__(self, stride=1, dp_channels=1, atom_r=1, atom_c=1, numb_atom=1, T_SC=1, k=1):
 		super(SL_CSC_IHT, self).__init__()
 		self.D_trans = nn.Conv2d(dp_channels, numb_atom, (atom_r, atom_c), stride, padding=0, dilation=1, groups=1, bias=False)
-		self.dropout = nn.Dropout2d(p=0.5, inplace=False)
+		# self.dropout = nn.Dropout2d(p=0.5, inplace=False)
 		self.D = nn.ConvTranspose2d(numb_atom, dp_channels, (atom_c, atom_r), stride, padding=0, output_padding=0, groups=1, bias=False, dilation=1)
 		self.normalise_weights()
 		self.D_trans.weight.data = self.D.weight.data.permute(0,1,3,2)
@@ -311,7 +311,7 @@ class SL_CSC_IHT(nn.Module):
 			# print(np.sum(X[0].data.numpy()**2))
 			# Hard threshold each image in the dataset
 			X, l2_error, alpha = self.linesearch(Y,X)
-			if i==0 or (i+1)%5 == 0:
+			if i==0 or (i+1)%10 == 0:
 				# After run IHT print out the result
 				av_num_zeros_per_image = X.data.nonzero().numpy().shape[0]/y_dims[0]
 				percent_zeros_per_image = 100*av_num_zeros_per_image/(y_dims[2]*y_dims[3])
@@ -336,7 +336,7 @@ class SL_CSC_IHT(nn.Module):
 		# Define search parameter for Armijo method
 		c = 0.5
 		alpha = 1
-		g = self.D_trans(Y-self.dropout(self.D(X)))
+		g = self.D_trans(Y-self.D(X))
 		HT_arg = X + alpha*g
 		X_update, sup = hard_threshold_k(HT_arg, self.k)
 		# Calculate cost of current X location

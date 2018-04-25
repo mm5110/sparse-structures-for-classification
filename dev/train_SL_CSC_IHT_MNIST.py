@@ -26,8 +26,8 @@ filename = "SL_CSC_IHT"
 # Training hyperparameters
 num_epochs = 1 #100
 batch_size = 2000
-T_SC = 5
-T_DIC = 60
+T_SC = 50
+T_DIC = 10
 stride = 1
 learning_rate = 0.6
 momentum = 0.9

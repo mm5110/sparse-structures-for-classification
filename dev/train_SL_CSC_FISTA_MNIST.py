@@ -26,8 +26,8 @@ filename = "SL_CSC_FISTA"
 # Training hyperparameters
 num_epochs = 1 #100
 batch_size = 2000
-T_SC = 10
-T_DIC = 60
+T_SC = 50
+T_DIC = 20
 T_PM = 8
 stride = 1
 learning_rate = 3
@@ -73,6 +73,8 @@ test_loader = torch.utils.data.DataLoader(
 train_set_dims = list(train_set.train_data.size())
 print(train_set.train_data.size())               # (60000, 28, 28)
 print(train_set.train_labels.size())               # (60000)
+
+
 
 # Intitilise Convolutional Sparse Coder CSC
 CSC = scc.SL_CSC_FISTA(stride, dp_channels, atom_r, atom_c, numb_atom, tau, T_SC, T_PM)
