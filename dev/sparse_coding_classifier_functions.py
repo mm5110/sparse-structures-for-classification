@@ -147,7 +147,10 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, optimizer,
 			# Fix dictionary and calculate sparse code
 			if CSC.forward_type == 'FISTA_fixed_step':
 				CSC.calc_L(input_dims)
-			X = CSC.forward(inputs)
+			if i < 3:
+				X = CSC.D_trans(inputs).detach()
+			else:
+				X = CSC.forward(inputs).detach()
 			# Fix sparse code and update dictionary
 			print("Running dictionary update")
 			for j in range(T_DIC):
@@ -317,7 +320,7 @@ class SL_CSC_IHT(nn.Module):
 				percent_zeros_per_image = 100*av_num_zeros_per_image/(y_dims[2]*y_dims[3])
 				# pix_error = l2_error/(y_dims[0]*y_dims[2]*y_dims[3])
 				error_percent = l2_error*100/(np.sum((Y).data.numpy()**2))
-				print("After " +repr(i+1) + " iterations of IHT, average l2 error over batch: {0:1.2f}".format(error_percent) + "% , Av. sparsity per image: {0:1.2f}".format(percent_zeros_per_image) +"%")
+				print("After " +repr(i) + " iterations of IHT, average l2 error over batch: {0:1.2f}".format(error_percent) + "% , Av. sparsity per image: {0:1.2f}".format(percent_zeros_per_image) +"%")
 		return X
 
 	
@@ -345,7 +348,7 @@ class SL_CSC_IHT(nn.Module):
 		l2_error = np.sum((Y-self.D(X_update)).data.numpy()**2)
 		# While the cost at the next location is higher than the current one iterate up to a count of 8
 		count = 0
-		while l2_error >= l2_error_start  and count<=15:
+		while l2_error >= l2_error_start and count<=15:
 			alpha = alpha*c
 			HT_arg = X + alpha*g
 			X_update, sup = hard_threshold_k(HT_arg, self.k)
@@ -354,6 +357,55 @@ class SL_CSC_IHT(nn.Module):
 		# print("l2 error at end of linesearch step:{0:1.2f}".format(l2_error))
 		return X_update, l2_error, alpha
 			
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+class SL_CSC_OMP(nn.Module):
+	def __init__(self, stride=1, dp_channels=1, atom_r=1, atom_c=1, numb_atom=1, T_SC=1, k=1):
+		super(SL_CSC_IHT, self).__init__()
+		self.D_trans = nn.Conv2d(dp_channels, numb_atom, (atom_r, atom_c), stride, padding=0, dilation=1, groups=1, bias=False)
+		# self.dropout = nn.Dropout2d(p=0.5, inplace=False)
+		self.D = nn.ConvTranspose2d(numb_atom, dp_channels, (atom_c, atom_r), stride, padding=0, output_padding=0, groups=1, bias=False, dilation=1)
+		self.normalise_weights()
+		self.D_trans.weight.data = self.D.weight.data.permute(0,1,3,2)
+		self.k = k
+		self.T_SC=T_SC
+		self.forward_type = 'OMP'
+		self.stride = stride
+
+	def forward(self, Y):
+		print("Running OMP")
+		y_dims = list(Y.data.size())
+		w_dims = list(self.D_trans.weight.data.size())
+		# Initialise X as zerio tensor
+		X = Variable(torch.zeros(y_dims[0], w_dims[0], (y_dims[2]-w_dims[2]+1),(y_dims[3]-w_dims[3]+1)))
+		R = Y.clone()
+		kernel_inds = np.zeros((y_dims[0], self.k))
+		row_inds = np.zeros((y_dims[0], self.k))
+		column_inds = np.zeros((y_dims[0], self.k))
+		for i in range(self.k):
+			Z = self.D_trans(R).numpy()
+			for j in range(y_dims[0]):
+				kernel_inds[j, i], row_inds[j,i], column_inds[j,i] = np.unravel_index(Z[j].argmax(), Z[j].shape)
+				# update each X, need to think of how solving the l2 minimisation works in the convolution and tensorized way....
+				supp_D_trans = nn.Conv2d(j, numb_atom, (w_dims[2], w_dims[3]), self.stride, padding=0, dilation=1, groups=1, bias=False)
+				supp_D = nn.ConvTranspose2d(j, y_dims[1], (w_dims[2], w_dims[3]), self.stride, padding=0, output_padding=0, groups=1, bias=False, dilation=1)
+				supp_D.weight.data = CSC.D.weight.data[kernel_inds[j, i], 0, row_inds[j,i], column_inds[j,i]]
+				supp_D_trans.weight.data = supp_D.weight.data.permute(0,1,3,2)
+				X[i] = 
+			R = Y - self.D(X)
+
+
+
+	def reverse(self, x):
+		out = self.D(x)
+		return out
+
+	def normalise_weights(self):
+		filter_dims = list(np.shape(self.D.weight.data.numpy()))
+		for i in range(filter_dims[0]):
+			for j in range(filter_dims[1]):
+				self.D.weight.data[i][j] = self.D.weight.data[i][j]/((np.sum(self.D.weight.data[i][j].numpy()**2))**0.5)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
