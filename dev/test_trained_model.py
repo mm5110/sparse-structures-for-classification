@@ -17,7 +17,7 @@ from torch.utils.data.sampler import SubsetRandomSampler
 import sparse_coding_classifier_functions as scc
 
 # Provide data filename (both yml and pt file) in which the target model data is stored
-filename = "SL_CSC_NIHT"
+filename = "SL_CSC_IHT"
 
 # Testing parameters
 batch_size=80

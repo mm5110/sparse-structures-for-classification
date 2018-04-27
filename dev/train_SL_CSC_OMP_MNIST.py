@@ -24,23 +24,23 @@ from skimage.transform import rescale, resize, downscale_local_mean
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Path to save model to
-filename = "SL_CSC_IHT"
+filename = "SL_CSC_OMP"
 
 # Training hyperparameters
 num_epochs = 1 #100
-batch_size = 2000
-T_SC = 20
-T_DIC = 40
+batch_size = 1
+T_SC = 40
+T_DIC = 100
 stride = 1
-learning_rate = 0.7
+learning_rate = 1
 momentum = 0.9
 weight_decay=0
-k = 40
+k = 5
 
 # Local dictionary dimensions
 atom_r = 28
 atom_c = 28
-numb_atom = 1000
+numb_atom = 15
 dp_channels = 1 
 
 # Load MNIST
@@ -75,7 +75,7 @@ print(train_set.train_data.size())               # (60000, 28, 28)
 print(train_set.train_labels.size())               # (60000)
 
 # Intitilise Convolutional Sparse Coder CSC
-CSC = scc.SL_CSC_IHT(stride, dp_channels, atom_r, atom_c, numb_atom, T_SC, k)
+CSC = scc.SL_CSC_OMP(stride, dp_channels, atom_r, atom_c, numb_atom, T_SC, k)
 
 # Define optimisation parameters
 CSC_parameters = [

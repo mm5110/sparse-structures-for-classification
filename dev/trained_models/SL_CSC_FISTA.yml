@@ -1,8 +1,8 @@
 T_PM: 8
-T_SC: 10
+T_SC: 50
 atom_c: 28
 atom_r: 28
 dp_channels: 1
-numb_atom: 500
+numb_atom: 100
 stride: 1
-tau: 0.9
+tau: 0.7

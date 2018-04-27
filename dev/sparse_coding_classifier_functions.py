@@ -147,7 +147,10 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, optimizer,
 			# Fix dictionary and calculate sparse code
 			if CSC.forward_type == 'FISTA_fixed_step':
 				CSC.calc_L(input_dims)
-			X = CSC.forward(inputs)
+			if i < 0:
+				X = CSC.D_trans(inputs).detach()
+			else:
+				X = CSC.forward(inputs).detach()
 			# Fix sparse code and update dictionary
 			print("Running dictionary update")
 			for j in range(T_DIC):
@@ -197,7 +200,7 @@ class SL_CSC_FISTA(nn.Module):
 		super(SL_CSC_FISTA, self).__init__()
 		self.D_trans = nn.Conv2d(dp_channels, numb_atom, (atom_r, atom_c), stride, padding=0, dilation=1, groups=1, bias=False)
 		self.D = nn.ConvTranspose2d(numb_atom, dp_channels, (atom_c, atom_r), stride, padding=0, output_padding=0, groups=1, bias=False, dilation=1)
-		self.dropout = nn.Dropout2d(p=0.5, inplace=False)
+		# self.dropout = nn.Dropout2d(p=0.5, inplace=False)
 		self.normalise_weights()
 		self.D_trans.weight.data = self.D.weight.data.permute(0,1,3,2)
 		self.tau = tau
@@ -230,7 +233,7 @@ class SL_CSC_FISTA(nn.Module):
 			X1 = X2.clone() #untoggle
 			t1 = t2
 			# Print at intervals to present progress
-			if i==0 or (i+1)%5 == 0:
+			if i==0 or (i+1)%10 == 0:
 				av_num_zeros_per_image = X2.data.nonzero().numpy().shape[0]/y_dims[0]
 				percent_zeros_per_image = 100*av_num_zeros_per_image/(y_dims[2]*y_dims[3])
 				l2_error = np.sum((Y-self.D(X2)).data.numpy()**2)
@@ -250,7 +253,7 @@ class SL_CSC_FISTA(nn.Module):
 		# Define search parameter for Armijo method
 		c = 0.5
 		alpha = 1
-		g = self.D_trans(Y-self.dropout(self.D(X)))
+		g = self.D_trans(Y-self.D(X))
 		ST_arg = X + alpha*g
 		X_update = soft_thresh(ST_arg, self.tau*alpha)
 		# Calculate cost of current X location
@@ -292,7 +295,7 @@ class SL_CSC_IHT(nn.Module):
 	def __init__(self, stride=1, dp_channels=1, atom_r=1, atom_c=1, numb_atom=1, T_SC=1, k=1):
 		super(SL_CSC_IHT, self).__init__()
 		self.D_trans = nn.Conv2d(dp_channels, numb_atom, (atom_r, atom_c), stride, padding=0, dilation=1, groups=1, bias=False)
-		self.dropout = nn.Dropout2d(p=0.5, inplace=False)
+		# self.dropout = nn.Dropout2d(p=0.5, inplace=False)
 		self.D = nn.ConvTranspose2d(numb_atom, dp_channels, (atom_c, atom_r), stride, padding=0, output_padding=0, groups=1, bias=False, dilation=1)
 		self.normalise_weights()
 		self.D_trans.weight.data = self.D.weight.data.permute(0,1,3,2)
@@ -311,13 +314,13 @@ class SL_CSC_IHT(nn.Module):
 			# print(np.sum(X[0].data.numpy()**2))
 			# Hard threshold each image in the dataset
 			X, l2_error, alpha = self.linesearch(Y,X)
-			if i==0 or (i+1)%5 == 0:
+			if i==0 or (i+1)%10 == 0:
 				# After run IHT print out the result
 				av_num_zeros_per_image = X.data.nonzero().numpy().shape[0]/y_dims[0]
 				percent_zeros_per_image = 100*av_num_zeros_per_image/(y_dims[2]*y_dims[3])
 				# pix_error = l2_error/(y_dims[0]*y_dims[2]*y_dims[3])
 				error_percent = l2_error*100/(np.sum((Y).data.numpy()**2))
-				print("After " +repr(i+1) + " iterations of IHT, average l2 error over batch: {0:1.2f}".format(error_percent) + "% , Av. sparsity per image: {0:1.2f}".format(percent_zeros_per_image) +"%")
+				print("After " +repr(i) + " iterations of IHT, average l2 error over batch: {0:1.2f}".format(error_percent) + "% , Av. sparsity per image: {0:1.2f}".format(percent_zeros_per_image) +"%")
 		return X
 
 	
@@ -336,7 +339,7 @@ class SL_CSC_IHT(nn.Module):
 		# Define search parameter for Armijo method
 		c = 0.5
 		alpha = 1
-		g = self.D_trans(Y-self.dropout(self.D(X)))
+		g = self.D_trans(Y-self.D(X))
 		HT_arg = X + alpha*g
 		X_update, sup = hard_threshold_k(HT_arg, self.k)
 		# Calculate cost of current X location
@@ -345,7 +348,7 @@ class SL_CSC_IHT(nn.Module):
 		l2_error = np.sum((Y-self.D(X_update)).data.numpy()**2)
 		# While the cost at the next location is higher than the current one iterate up to a count of 8
 		count = 0
-		while l2_error >= l2_error_start  and count<=15:
+		while l2_error >= l2_error_start and count<=15:
 			alpha = alpha*c
 			HT_arg = X + alpha*g
 			X_update, sup = hard_threshold_k(HT_arg, self.k)
@@ -354,6 +357,123 @@ class SL_CSC_IHT(nn.Module):
 		# print("l2 error at end of linesearch step:{0:1.2f}".format(l2_error))
 		return X_update, l2_error, alpha
 			
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+class SL_CSC_OMP(nn.Module):
+	def __init__(self, stride=1, dp_channels=1, atom_r=1, atom_c=1, numb_atom=1, T_SC=1, k=1):
+		super(SL_CSC_OMP, self).__init__()
+		self.D_trans = nn.Conv2d(dp_channels, numb_atom, (atom_r, atom_c), stride, padding=0, dilation=1, groups=1, bias=False)
+		# self.dropout = nn.Dropout2d(p=0.5, inplace=False)
+		self.D = nn.ConvTranspose2d(numb_atom, dp_channels, (atom_c, atom_r), stride, padding=0, output_padding=0, groups=1, bias=False, dilation=1)
+		self.normalise_weights()
+		self.D_trans.weight.data = self.D.weight.data.permute(0,1,3,2)
+		self.k = k
+		self.T_SC=T_SC
+		self.forward_type = 'OMP'
+		self.stride = stride
+
+	def forward(self, Y):
+		print("Running OMP")
+		y_dims = list(Y.data.size())
+		w_dims = list(self.D_trans.weight.data.size())
+		# Initialise X as zerio tensor
+		X = Variable(torch.zeros(y_dims[0], w_dims[0], (y_dims[2]-w_dims[2]+1),(y_dims[3]-w_dims[3]+1)))
+		R = Y.clone()
+		# Initialise numy arrays to store indices storing the kernels in the support
+		kernel_inds = np.zeros((y_dims[0], self.k))
+		row_inds = np.zeros((y_dims[0], self.k))
+		column_inds = np.zeros((y_dims[0], self.k))
+		# Define optimisation procedure to recover X
+		learning_rate= 1
+		momentum = 0.9
+		weight_decay = 0
+		cost_function = nn.MSELoss(size_average=True)
+		# Calculate Y l2 norm
+		Y_l2 = np.sum(R.data.numpy()**2)
+
+		# To observe residual as it proceeds
+		plt.ion()
+		plt.show()
+
+		# Iteratively add elements to the support
+		for i in range(1, self.k):
+			# Calculate the atoms of D that correlate most highly with the residual of each element
+			Z = self.D_trans(R).data.numpy()
+			# print(Z)
+			# Iterate through each data point to work out the individual supports
+			for j in range(y_dims[0]):
+				# Identify new kernel to add to support
+				# Note that our version of OMP is slightly different.. if we use filter sizes less than the dimension of the signal then we loose the location of the filter
+				# In other words instead of adding the filter at one location, we add it at all.
+				kernel_inds[j, i-1], row_inds[j,i-1], column_inds[j,i-1] = np.unravel_index(Z[j].argmax(), Z[j].shape)
+				print("Kernels selected:")
+				print(kernel_inds[j,:])
+				# Extract the kernels in the support and move into a new convolutional filter
+				supp_D = nn.ConvTranspose2d(i, y_dims[1], (w_dims[3], w_dims[2]), self.stride, padding=0, output_padding=0, groups=1, bias=False, dilation=1)
+				# Iteratively load the support into convolution operator
+				for l in range(i):
+					supp_D.weight.data[l] = self.D.weight.data[kernel_inds[j,l]]
+				# Define a temporary variable for X[j] to update and iterate over with the optimiser
+				temp_X_j = Variable(torch.zeros(1, i, (y_dims[2]-w_dims[2]+1), (y_dims[3]-w_dims[3]+1)), requires_grad = True)
+				# Define optimisation procedure
+				optimizer2 = torch.optim.SGD([temp_X_j], lr=learning_rate, momentum=momentum, weight_decay=weight_decay, nesterov=True)
+				# Run a number of iteration steps to minimise the l2 error ||Ax-y||
+				for k in range(self.T_SC):
+					# Zero the gradient
+					optimizer2.zero_grad()
+					# Calculate estimate of reconstructed Y
+					Y_j_recon = supp_D(temp_X_j)
+					# Calculate loss according to the defined cost function between the true Y and reconstructed Y
+					loss = cost_function(Y_j_recon, Y[j])
+					# Calculate the gradient of the cost function wrt to each parameters
+					loss.backward()
+					print(loss)
+					# print(temp_X_j.grad)
+					# Update each parameter according to the optimizer update rule (single step)
+					optimizer2.step()
+				# Update the sparse representation of X
+				for l in range(i):
+					X.data[j][kernel_inds[j, l]] = temp_X_j.data[0][l]
+
+				Y_recon = supp_D(temp_X_j)
+			#WIP! problem at this point
+			# print(X)
+			R1 = Y - self.D(X)
+			R2 = Y - Y_recon
+
+			print("Difference between two methods for calculating R")
+			print(R1-R2)
+
+
+			plt.figure(2)
+			plt.subplot(1,2,1)
+			plt.imshow(Y.data[0][0].numpy(), cmap='gray')
+			plt.title("Original Image")
+			plt.subplot(1,2,2)
+			plt.imshow(R2.data[0][0].numpy(), cmap='gray')
+			plt.title("Residual of Image")
+			plt.draw()
+			plt.pause(0.001)			
+			input("Press Enter to continue...")
+
+			if (i)%1 == 0:
+				R_l2_error = np.sum(R.data.numpy()**2)
+				R_l2_percent_error = 100*R_l2_error/Y_l2
+				print("l2 norm of residual at cardinality 0: {0:1.2f}%".format(R_l2_percent_error))
+		return X
+
+
+
+	def reverse(self, x):
+		out = self.D(x)
+		return out
+
+	def normalise_weights(self):
+		filter_dims = list(np.shape(self.D.weight.data.numpy()))
+		for i in range(filter_dims[0]):
+			for j in range(filter_dims[1]):
+				self.D.weight.data[i][j] = self.D.weight.data[i][j]/((np.sum(self.D.weight.data[i][j].numpy()**2))**0.5)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
