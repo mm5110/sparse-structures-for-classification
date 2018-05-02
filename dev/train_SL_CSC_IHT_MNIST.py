@@ -28,14 +28,14 @@ filename = "SL_CSC_IHT"
 
 # Training hyperparameters
 num_epochs = 1 #100
-batch_size = 2000
-T_SC = 20
-T_DIC = 40
+batch_size = 1000
+T_SC = 100
+T_DIC = 60
 stride = 1
-learning_rate = 0.7
-momentum = 0.9
+learning_rate = 1
+momentum = 0.9 #0.9
 weight_decay=0
-k = 40
+k = 30
 
 # Local dictionary dimensions
 atom_r = 28
@@ -53,7 +53,7 @@ trans = transforms.Compose([transforms.ToTensor()])
 train_set = dsets.MNIST(root=root, train=True, transform=trans, download=download)
 test_set = dsets.MNIST(root=root, train=False, transform=trans)
 
-idx = list(range(10000))
+idx = list(range(60000))
 train_sampler = SubsetRandomSampler(idx)
 
 train_loader = torch.utils.data.DataLoader(
@@ -84,11 +84,12 @@ CSC_parameters = [
 
 # Define training settings/ options
 cost_function = nn.MSELoss(size_average=True)
-optimizer = torch.optim.SGD(CSC_parameters, lr=learning_rate, momentum=momentum, weight_decay=weight_decay, nesterov=True)
+# optimizer = torch.optim.SGD(CSC_parameters, lr=learning_rate, momentum=momentum, weight_decay=weight_decay, nesterov=True)
 # optimizer = torch.optim.Adam(SSC.parameters(), lr=learning_rate)
 
 # Train Convolutional Sparse Coder
-CSC = scc.train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, optimizer, batch_size)
+# CSC = scc.train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, optimizer, batch_size)
+CSC = scc.train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parameters, learning_rate, momentum, weight_decay, batch_size)
 print("Training seqeunce finished")
 
 
@@ -96,7 +97,7 @@ print("Plotting learned filters after training")
 # Plot all filters at the end of the training sequence
 D = CSC.D.weight.data.numpy()
 M = showFilters(D,10,10)
-plt.figure(5, figsize=(30,30))
+plt.figure(5, figsize=(20,20))
 plt.imshow(rescale(M, scale =4, mode='constant'),cmap='gray')
 plt.axis('off')
 plt.show(block = True)

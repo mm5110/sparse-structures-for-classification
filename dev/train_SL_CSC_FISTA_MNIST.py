@@ -27,22 +27,22 @@ filename = "SL_CSC_FISTA"
 
 # Training hyperparameters
 num_epochs = 1 #100
-batch_size = 2000
-T_SC = 50
-T_DIC = 10
+batch_size =1000
+T_SC = 20
+T_DIC = 20
 T_PM = 8
 stride = 1
-learning_rate = 3
-momentum = 0.9
+learning_rate = 0.001
+momentum = 00
 weight_decay=0
 
 # Weight importance of sparsity vs. reconstruction
-tau = 0.6
+tau = 1
 
 # Local dictionary dimensions
 atom_r = 28
 atom_c = 28
-numb_atom = 100
+numb_atom = 1000
 dp_channels = 1 
 
 # Load MNIST
@@ -55,7 +55,7 @@ trans = transforms.Compose([transforms.ToTensor()])
 train_set = dsets.MNIST(root=root, train=True, transform=trans, download=download)
 test_set = dsets.MNIST(root=root, train=False, transform=trans)
 
-idx = list(range(10000))
+idx = list(range(60000))
 train_sampler = SubsetRandomSampler(idx)
 
 train_loader = torch.utils.data.DataLoader(
@@ -89,7 +89,7 @@ CSC_parameters = [
 
 # Define training settings/ options
 cost_function = nn.MSELoss(size_average=True)
-optimizer = torch.optim.SGD(CSC_parameters, lr=learning_rate, momentum=momentum, weight_decay=weight_decay, nesterov=True)
+optimizer = torch.optim.SGD(CSC_parameters, lr=learning_rate, momentum=momentum, weight_decay=weight_decay, nesterov=False)
 # optimizer = torch.optim.Adam(SSC.parameters(), lr=learning_rate)
 
 # Train Convolutional Sparse Coder
@@ -100,8 +100,8 @@ print("Training seqeunce finished")
 print("Plotting learned filters after training")
 D = CSC.D.weight.data.numpy()
 M = showFilters(D,10,10)
-plt.figure(5, figsize=(30,30))
-plt.imshow(rescale(M, scale=4, mode='constant'),cmap='gray')
+plt.figure(5, figsize=(20,20))
+plt.imshow(rescale(M, scale=3, mode='constant'),cmap='gray')
 plt.axis('off')
 plt.show(block = True)
 

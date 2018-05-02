@@ -100,22 +100,15 @@ def soft_thresh(x, alpha):
 	return y
 
 def hard_threshold_k(X, k):
-	# x is a pytorch variable, extract data tensor and convert to a numpy array
-	X_numpy = X.data.numpy()
-	X_dims = list(np.shape(X_numpy))
-	X_new = np.zeros((X_dims[0], X_dims[1], X_dims[2], X_dims[3]))	
-	for i in range(X_dims[0]):
-		# copy image data, want to sort elements only for a given image
-		abs_coeffs = np.absolute(np.copy(X_numpy[i]))
-		# extract a list of the ordered elements
-		inds_ordered = np.dstack(np.unravel_index(np.argsort(abs(abs_coeffs).ravel()), (X_dims[1], X_dims[2], X_dims[3])))
-		# Identify the support of the k largest elements
-		sup = inds_ordered[0][-k:]
-		# Update X_new all but the k largest entries of x
-		for j in range(len(sup)):
-			X_new[i][sup[j][0]][sup[j][1]][sup[j][2]] = X_numpy[i][sup[j][0]][sup[j][1]][sup[j][2]]
-	X_out = Variable(torch.from_numpy(X_new).type(torch.FloatTensor))
-	return X_out, sup
+	Gamma = X.clone()
+	Gamma = Gamma.view(Gamma.data.shape[0], Gamma.data.shape[1]*Gamma.data.shape[2]*Gamma.data.shape[3])
+	m = X.data.shape[1]
+	a,_ = torch.abs(Gamma).data.sort(dim=1,descending=True)
+	T = torch.mm(a[:,k].unsqueeze(1),torch.Tensor(np.ones((1,m))))
+	mask = Variable(torch.Tensor( (np.abs(Gamma.data.numpy())>T.numpy()) + 0.))
+	Gamma = Gamma * mask
+	Gamma = Gamma.view(X.data.shape)
+	return (Gamma)
 
 def project_onto_sup(X, sup):
 	X_numpy = X.data.numpy()
@@ -129,8 +122,10 @@ def project_onto_sup(X, sup):
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # PRIMARY ALGORITHM FUNCTIONS
-def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, optimizer, batch_size):	
+def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parameters, learning_rate, momentum, weight_decay, batch_size):	
 	print("Training SL-CSC. Batch size is: " + repr(batch_size))
+	# Define optimizer
+	optimizer = torch.optim.SGD(CSC_parameters, lr=learning_rate, momentum=momentum, weight_decay=weight_decay, nesterov=True)
 	# Initialise variables needed to plot a random sample of three kernels as they are trained
 	filter_dims = list(np.shape(CSC.D_trans.weight.data.numpy()))
 	idx = random.sample(range(0, filter_dims[0]), 3)
@@ -147,7 +142,7 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, optimizer,
 			# Fix dictionary and calculate sparse code
 			if CSC.forward_type == 'FISTA_fixed_step':
 				CSC.calc_L(input_dims)
-			if i < 0:
+			if i < 3:
 				X = CSC.D_trans(inputs).detach()
 			else:
 				X = CSC.forward(inputs).detach()
@@ -187,6 +182,8 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, optimizer,
 			CSC.normalise_weights()
 			# Ensure that weights for the reverse and forward operations are consistent	
 			CSC.D_trans.weight.data = CSC.D.weight.data.permute(0,1,3,2)
+			# Reset optimizer
+			optimizer = torch.optim.SGD(CSC_parameters, lr=learning_rate, momentum=momentum, weight_decay=weight_decay, nesterov=True)
 	# Return trained CSC
 	return CSC
 
@@ -233,7 +230,7 @@ class SL_CSC_FISTA(nn.Module):
 			X1 = X2.clone() #untoggle
 			t1 = t2
 			# Print at intervals to present progress
-			if i==0 or (i+1)%10 == 0:
+			if i==0 or (i+1)%2 == 0:
 				av_num_zeros_per_image = X2.data.nonzero().numpy().shape[0]/y_dims[0]
 				percent_zeros_per_image = 100*av_num_zeros_per_image/(y_dims[2]*y_dims[3])
 				l2_error = np.sum((Y-self.D(X2)).data.numpy()**2)
@@ -253,6 +250,7 @@ class SL_CSC_FISTA(nn.Module):
 		# Define search parameter for Armijo method
 		c = 0.5
 		alpha = 1
+		alpha_lim = 15
 		g = self.D_trans(Y-self.D(X))
 		ST_arg = X + alpha*g
 		X_update = soft_thresh(ST_arg, self.tau*alpha)
@@ -265,7 +263,7 @@ class SL_CSC_FISTA(nn.Module):
 		update_cost = np.sum((Y-self.D(X_update)).data.numpy()**2) + self.tau*np.sum(np.abs(X.data.numpy()))
 		# While the cost at the next location is higher than the current one iterate
 		count = 0
-		while update_cost >= current_cost and count<=15:
+		while update_cost >= current_cost and count<alpha_lim:
 			alpha = alpha*c
 			ST_arg = X + alpha*g
 			X_update = soft_thresh(ST_arg, self.tau*alpha)
@@ -273,6 +271,8 @@ class SL_CSC_FISTA(nn.Module):
 			l2_error = np.sum((Y-self.D(X_update)).data.numpy()**2)
 			update_cost = l2_error + self.tau*l1_error
 			count +=1
+		if count >= alpha_lim:
+			X_update = X
 		# print("Cost at the end of the linesearch: {0:1.2f}".format(update_cost)+ ", l2 error:{0:1.2f}".format(l2_error) + ", l1 error: {0:1.2f}".format(l1_error))
 		return X_update, update_cost, alpha
 
@@ -299,29 +299,57 @@ class SL_CSC_IHT(nn.Module):
 		self.D = nn.ConvTranspose2d(numb_atom, dp_channels, (atom_c, atom_r), stride, padding=0, output_padding=0, groups=1, bias=False, dilation=1)
 		self.normalise_weights()
 		self.D_trans.weight.data = self.D.weight.data.permute(0,1,3,2)
-		self.k = k
+		self.k_target = k
+		self.k=np.minimum(11*k, atom_r*atom_c)
+		self.k_lin_decay_rate = 10/10
 		self.T_SC=T_SC
 		self.forward_type = 'IHT'
 
 	def forward(self, Y):
-		print("Running IHT")
+		print("Running IHT, projecting onto support cardinality k = {0:1.0f}".format(self.k))
 		y_dims = list(Y.data.size())
 		w_dims = list(self.D_trans.weight.data.size())
-		# Initialise X as zerio tensor
-		X = Variable(torch.zeros(y_dims[0], w_dims[0], (y_dims[2]-w_dims[2]+1),(y_dims[3]-w_dims[3]+1)))
-		# X = self.D_trans(Y)
-		for i in range(0, self.T_SC):
-			# print(np.sum(X[0].data.numpy()**2))
-			# Hard threshold each image in the dataset
-			X, l2_error, alpha = self.linesearch(Y,X)
+		# Initialise X as zero tensor
+		X1 = Variable(torch.zeros(y_dims[0], w_dims[0], (y_dims[2]-w_dims[2]+1),(y_dims[3]-w_dims[3]+1)))
+		alpha = 0.01 # Delete after testing
+		X1_error = np.sum((Y).data.numpy()**2)
+		X2_error = 0
+		i=0
+		run = True
+		# for i in range(0, self.T_SC):
+		while run == True:
+			g = self.D_trans(Y-self.D(X1))# Delete after testing
+			HT_arg = X1 + alpha*g# Delete after testing
+			X2 = hard_threshold_k(HT_arg, self.k)# Delete after testing
+			X2_error = np.sum((Y-self.D(X2)).data.numpy()**2)
+			# print(X1_error)
+			# print(X2_error)
+			if X2_error < X1_error:
+				X1 = X2
+				X1_error = X2_error
+			else:
+				run = False
+
+			# X, l2_error, alpha = self.linesearch(Y,X)# uncomment
 			if i==0 or (i+1)%10 == 0:
 				# After run IHT print out the result
-				av_num_zeros_per_image = X.data.nonzero().numpy().shape[0]/y_dims[0]
+				l2_error = X1_error
+				av_num_zeros_per_image = X1.data.nonzero().numpy().shape[0]/y_dims[0]
 				percent_zeros_per_image = 100*av_num_zeros_per_image/(y_dims[2]*y_dims[3])
 				# pix_error = l2_error/(y_dims[0]*y_dims[2]*y_dims[3])
 				error_percent = l2_error*100/(np.sum((Y).data.numpy()**2))
-				print("After " +repr(i) + " iterations of IHT, average l2 error over batch: {0:1.2f}".format(error_percent) + "% , Av. sparsity per image: {0:1.2f}".format(percent_zeros_per_image) +"%")
-		return X
+				print("After " +repr(i+1) + " iterations of IHT, average l2 error over batch: {0:1.2f}".format(error_percent) + "% , Av. sparsity per image: {0:1.2f}".format(percent_zeros_per_image) +"%")
+			i=i+1
+
+		# Update k
+		if self.k > self.k_target:
+			temp = self.k - int(self.k_lin_decay_rate*self.k_target)
+			if temp <= self.k_target:
+				self.k = self.k_target
+			else:
+				self.k = temp
+		# Return value of k calculated
+		return X1
 
 	
 	def reverse(self, x):
@@ -338,23 +366,25 @@ class SL_CSC_IHT(nn.Module):
 	def linesearch(self,Y,X):
 		# Define search parameter for Armijo method
 		c = 0.5
-		alpha = 1
+		alpha = 10
+		alpha_lim = 15
 		g = self.D_trans(Y-self.D(X))
 		HT_arg = X + alpha*g
-		X_update, sup = hard_threshold_k(HT_arg, self.k)
+		X_update = hard_threshold_k(HT_arg, self.k)
 		# Calculate cost of current X location
 		l2_error_start = np.sum((Y-self.D(X)).data.numpy()**2)
 		# Calculate cost of first suggested update
 		l2_error = np.sum((Y-self.D(X_update)).data.numpy()**2)
 		# While the cost at the next location is higher than the current one iterate up to a count of 8
 		count = 0
-		while l2_error >= l2_error_start and count<=15:
+		while l2_error >= l2_error_start and count<alpha_lim:
 			alpha = alpha*c
 			HT_arg = X + alpha*g
-			X_update, sup = hard_threshold_k(HT_arg, self.k)
+			X_update = hard_threshold_k(HT_arg, self.k)
 			l2_error = np.sum((Y-self.D(X_update)).data.numpy()**2)
 			count +=1
-		# print("l2 error at end of linesearch step:{0:1.2f}".format(l2_error))
+		if count >= alpha_lim:
+			X_update = X
 		return X_update, l2_error, alpha
 			
 
