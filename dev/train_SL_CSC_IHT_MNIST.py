@@ -24,7 +24,7 @@ from skimage.transform import rescale, resize, downscale_local_mean
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Path to save model to
-filename = "SL_CSC_IHT"
+filename = "SL_CSC_IHT_2"
 
 # Training hyperparameters
 num_epochs = 1 #100
@@ -48,8 +48,8 @@ root = './data'
 download = False  # download MNIST dataset or not
 
 # Access MNIST dataset and define processing transforms to proces
-# trans = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (1.0,))])
-trans = transforms.Compose([transforms.ToTensor()])
+trans = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
+# trans = transforms.Compose([transforms.ToTensor()])
 train_set = dsets.MNIST(root=root, train=True, transform=trans, download=download)
 test_set = dsets.MNIST(root=root, train=False, transform=trans)
 
@@ -101,6 +101,8 @@ plt.figure(5, figsize=(20,20))
 plt.imshow(rescale(M, scale =4, mode='constant'),cmap='gray')
 plt.axis('off')
 plt.show(block = True)
+
+CSC.batch_size = 3
 
 print("Testing model on a few images from the training set")
 # Test reconstruction capabilities of trained CSC, first extract some test examples

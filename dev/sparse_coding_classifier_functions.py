@@ -44,7 +44,7 @@ def load_SL_CSC_IHT(filename):
 		loaded_CSC_vars = yaml.load(yaml_file)
 
 	# Initialise and return CSC
-	CSC = SL_CSC_IHT_backtracking(loaded_CSC_vars["stride"], loaded_CSC_vars["dp_channels"], loaded_CSC_vars["atom_r"], loaded_CSC_vars["atom_c"], loaded_CSC_vars["numb_atom"], loaded_CSC_vars["T_SC"], loaded_CSC_vars["k"])
+	CSC = SL_CSC_IHT(loaded_CSC_vars["stride"], loaded_CSC_vars["dp_channels"], loaded_CSC_vars["atom_r"], loaded_CSC_vars["atom_c"], loaded_CSC_vars["numb_atom"], loaded_CSC_vars["T_SC"], loaded_CSC_vars["k"])
 	# Load in network parameters
 	CSC.load_state_dict(torch.load(torch_load_path))
 	# Return model 
@@ -120,15 +120,34 @@ def project_onto_sup(X, sup):
 	X_out = Variable(torch.from_numpy(X_new).type(torch.FloatTensor))
 	return X_out
 
+def sample_filters(numb_atoms, p, k):
+	numb_active_filters = int(np.maximum(np.ceil(p*numb_atoms), k))
+	active_filter_inds = random.sample(range(0, numb_atoms), numb_active_filters)
+	return active_filter_inds
+
+def create_dropout_mask(numb_dp, numb_atoms, numb_r, numb_c, active_filter_inds):
+	temp = torch.zeros(numb_atoms, numb_r, numb_c)
+	for i in active_filter_inds:
+		temp[i] = torch.ones(numb_r, numb_c)
+
+	temp = torch.unsqueeze(temp,0)
+	mask = temp.repeat(numb_dp,1,1,1)
+	return mask
+
+
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # PRIMARY ALGORITHM FUNCTIONS
 def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parameters, learning_rate, momentum, weight_decay, batch_size):	
 	print("Training SL-CSC. Batch size is: " + repr(batch_size))
 	# Define optimizer
 	optimizer = torch.optim.SGD(CSC_parameters, lr=learning_rate, momentum=momentum, weight_decay=weight_decay, nesterov=True)
+	# Define variable needed for dropout
+	p=0.05
 	# Initialise variables needed to plot a random sample of three kernels as they are trained
 	filter_dims = list(np.shape(CSC.D_trans.weight.data.numpy()))
 	idx = random.sample(range(0, filter_dims[0]), 3)
+	# Prepare plots of filters
 	plt.ion()
 	plt.show()
 	for epoch in range(num_epochs):
@@ -139,13 +158,18 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parame
 			labels = Variable(labels)
 			# Calculate and update step size for sparse coding step
 			input_dims = list(inputs.size())
+			CSC.batch_size = input_dims[0]
+			# Generate dropout filter
+			active_filter_inds = sample_filters(filter_dims[0], p, CSC.k)
+			CSC.mask = create_dropout_mask(input_dims[0], filter_dims[0], (input_dims[2]-filter_dims[2]+1), (input_dims[3]-filter_dims[3]+1), active_filter_inds)
 			# Fix dictionary and calculate sparse code
 			if CSC.forward_type == 'FISTA_fixed_step':
 				CSC.calc_L(input_dims)
-			if i < 3:
-				X = CSC.D_trans(inputs).detach()
-			else:
-				X = CSC.forward(inputs).detach()
+			# if i < 3:
+			# 	X = CSC.D_trans(inputs).detach()
+			# else:
+			# 	X = CSC.forward(inputs).detach()
+			X = CSC.forward(inputs).detach()
 			# Fix sparse code and update dictionary
 			print("Running dictionary update")
 			for j in range(T_DIC):
@@ -184,6 +208,9 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parame
 			CSC.D_trans.weight.data = CSC.D.weight.data.permute(0,1,3,2)
 			# Reset optimizer
 			optimizer = torch.optim.SGD(CSC_parameters, lr=learning_rate, momentum=momentum, weight_decay=weight_decay, nesterov=True)
+	
+	# Reset the mask for non training state (i.e. no dropout)
+	CSC.mask = torch.ones(input_dims[0], filter_dims[0], (input_dims[2]-filter_dims[2]+1), (input_dims[3]-filter_dims[3]+1))
 	# Return trained CSC
 	return CSC
 
@@ -299,11 +326,15 @@ class SL_CSC_IHT(nn.Module):
 		self.D = nn.ConvTranspose2d(numb_atom, dp_channels, (atom_c, atom_r), stride, padding=0, output_padding=0, groups=1, bias=False, dilation=1)
 		self.normalise_weights()
 		self.D_trans.weight.data = self.D.weight.data.permute(0,1,3,2)
-		self.k_target = k
-		self.k=np.minimum(11*k, atom_r*atom_c)
-		self.k_lin_decay_rate = 10/10
+		# self.k_target = k
+		# self.k=np.minimum(11*k, atom_r*atom_c)
+		# self.k_lin_decay_rate = 10/10
+		self.k = k
 		self.T_SC=T_SC
 		self.forward_type = 'IHT'
+		self.batch_size = 1
+		self.mask = torch.ones(self.batch_size, numb_atom, atom_r, atom_c)
+
 
 	def forward(self, Y):
 		print("Running IHT, projecting onto support cardinality k = {0:1.0f}".format(self.k))
@@ -311,17 +342,17 @@ class SL_CSC_IHT(nn.Module):
 		w_dims = list(self.D_trans.weight.data.size())
 		# Initialise X as zero tensor
 		X1 = Variable(torch.zeros(y_dims[0], w_dims[0], (y_dims[2]-w_dims[2]+1),(y_dims[3]-w_dims[3]+1)))
-		alpha = 0.01 # Delete after testing
+		alpha = 0.005 # Delete after testing
 		X1_error = np.sum((Y).data.numpy()**2)
 		X2_error = 0
 		i=0
 		run = True
 		# for i in range(0, self.T_SC):
 		while run == True:
-			g = self.D_trans(Y-self.D(X1))# Delete after testing
-			HT_arg = X1 + alpha*g# Delete after testing
-			X2 = hard_threshold_k(HT_arg, self.k)# Delete after testing
-			X2_error = np.sum((Y-self.D(X2)).data.numpy()**2)
+			g = self.dropout(self.D_trans(Y-self.D(self.dropout(X1))))
+			HT_arg = X1 + alpha*g
+			X2 = hard_threshold_k(HT_arg, self.k)
+			X2_error = np.sum(((Y-self.D(self.dropout(X2))).data.numpy())**2)
 			# print(X1_error)
 			# print(X2_error)
 			if X2_error < X1_error:
@@ -329,7 +360,6 @@ class SL_CSC_IHT(nn.Module):
 				X1_error = X2_error
 			else:
 				run = False
-
 			# X, l2_error, alpha = self.linesearch(Y,X)# uncomment
 			if i==0 or (i+1)%10 == 0:
 				# After run IHT print out the result
@@ -340,14 +370,13 @@ class SL_CSC_IHT(nn.Module):
 				error_percent = l2_error*100/(np.sum((Y).data.numpy()**2))
 				print("After " +repr(i+1) + " iterations of IHT, average l2 error over batch: {0:1.2f}".format(error_percent) + "% , Av. sparsity per image: {0:1.2f}".format(percent_zeros_per_image) +"%")
 			i=i+1
-
-		# Update k
-		if self.k > self.k_target:
-			temp = self.k - int(self.k_lin_decay_rate*self.k_target)
-			if temp <= self.k_target:
-				self.k = self.k_target
-			else:
-				self.k = temp
+		# # Update k
+		# if self.k > self.k_target:
+		# 	temp = self.k - int(self.k_lin_decay_rate*self.k_target)
+		# 	if temp <= self.k_target:
+		# 		self.k = self.k_target
+		# 	else:
+		# 		self.k = temp
 		# Return value of k calculated
 		return X1
 
@@ -362,30 +391,33 @@ class SL_CSC_IHT(nn.Module):
 			for j in range(filter_dims[1]):
 				self.D.weight.data[i][j] = self.D.weight.data[i][j]/((np.sum(self.D.weight.data[i][j].numpy()**2))**0.5)
 
+	def dropout(self,X):
+		X_dropout = Variable(X.data*self.mask)
+		return X_dropout
 
-	def linesearch(self,Y,X):
-		# Define search parameter for Armijo method
-		c = 0.5
-		alpha = 10
-		alpha_lim = 15
-		g = self.D_trans(Y-self.D(X))
-		HT_arg = X + alpha*g
-		X_update = hard_threshold_k(HT_arg, self.k)
-		# Calculate cost of current X location
-		l2_error_start = np.sum((Y-self.D(X)).data.numpy()**2)
-		# Calculate cost of first suggested update
-		l2_error = np.sum((Y-self.D(X_update)).data.numpy()**2)
-		# While the cost at the next location is higher than the current one iterate up to a count of 8
-		count = 0
-		while l2_error >= l2_error_start and count<alpha_lim:
-			alpha = alpha*c
-			HT_arg = X + alpha*g
-			X_update = hard_threshold_k(HT_arg, self.k)
-			l2_error = np.sum((Y-self.D(X_update)).data.numpy()**2)
-			count +=1
-		if count >= alpha_lim:
-			X_update = X
-		return X_update, l2_error, alpha
+	# def linesearch(self,Y,X):
+	# 	# Define search parameter for Armijo method
+	# 	c = 0.5
+	# 	alpha = 10
+	# 	alpha_lim = 15
+	# 	g = self.D_trans(Y-self.D(X))
+	# 	HT_arg = X + alpha*g
+	# 	X_update = hard_threshold_k(HT_arg, self.k)
+	# 	# Calculate cost of current X location
+	# 	l2_error_start = np.sum((Y-self.D(X)).data.numpy()**2)
+	# 	# Calculate cost of first suggested update
+	# 	l2_error = np.sum((Y-self.D(X_update)).data.numpy()**2)
+	# 	# While the cost at the next location is higher than the current one iterate up to a count of 8
+	# 	count = 0
+	# 	while l2_error >= l2_error_start and count<alpha_lim:
+	# 		alpha = alpha*c
+	# 		HT_arg = X + alpha*g
+	# 		X_update = hard_threshold_k(HT_arg, self.k)
+	# 		l2_error = np.sum((Y-self.D(X_update)).data.numpy()**2)
+	# 		count +=1
+	# 	if count >= alpha_lim:
+	# 		X_update = X
+	# 	return X_update, l2_error, alpha
 			
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

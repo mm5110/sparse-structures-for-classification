@@ -15,6 +15,8 @@ from torch.autograd import Variable
 from torch.utils.data.sampler import SubsetRandomSampler
 
 import sparse_coding_classifier_functions as scc
+from AuxiliaryFunctions import showFilters
+from skimage.transform import rescale, resize, downscale_local_mean
 
 # Provide data filename (both yml and pt file) in which the target model data is stored
 filename = "SL_CSC_IHT"
@@ -28,7 +30,8 @@ download = False  # download MNIST dataset or not
 
 # Access MNIST dataset and define processing transforms to proces
 # trans = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (1.0,))])
-trans = transforms.Compose([transforms.ToTensor()])
+trans = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
+# trans = transforms.Compose([transforms.ToTensor()])
 test_set = dsets.MNIST(root=root, train=False, transform=trans)
 
 test_loader = torch.utils.data.DataLoader(
@@ -38,7 +41,9 @@ test_loader = torch.utils.data.DataLoader(
 
 # # Load in model
 CSC = scc.load_SL_CSC_IHT(filename)
-
+CSC.batch_size = batch_size
+filter_dims = list(np.shape(CSC.D_trans.weight.data.numpy()))
+CSC.mask = torch.ones(batch_size, filter_dims[0], 1,1)
 # Test reconstruction capabilities of trained CSC, first extract some test examples
 test_Y = Variable(torch.unsqueeze(test_set.test_data, dim=1), volatile=True).type(torch.FloatTensor)/255.   # shape from (2000, 28, 28) to (2000, 1, 28, 28), value in range(0,1)
 test_Y =Variable(test_Y.data[:80])
@@ -46,9 +51,9 @@ test_Y =Variable(test_Y.data[:80])
 test_X = CSC.forward(test_Y)
 test_Y_recon = CSC.reverse(test_X)
 
-id1 = 42
-id2 = 65
-id3 = 37
+id1 = 4
+id2 = 24
+id3 = 12
 
 # Plot original images side by side with reconstructions to get feel for how successful training was
 orig_image1 = test_Y[id1][0].data.numpy()
@@ -76,5 +81,11 @@ plt.imshow(recon_image3, cmap='gray')
 plt.show()
 
 
-
+# Plot all filters at the end of the training sequence
+D = CSC.D.weight.data.numpy()
+M = showFilters(D,10,10)
+plt.figure(5, figsize=(20,20))
+plt.imshow(rescale(M, scale =4, mode='constant'),cmap='gray')
+plt.axis('off')
+plt.show(block = True)
 
