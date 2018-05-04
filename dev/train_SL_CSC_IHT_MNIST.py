@@ -24,11 +24,11 @@ from skimage.transform import rescale, resize, downscale_local_mean
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Path to save model to
-filename = "SL_CSC_IHT_2"
+filename = "SL_CSC_IHT"
 
 # Training hyperparameters
 num_epochs = 1 #100
-batch_size = 1000
+batch_size = 200
 T_SC = 100
 T_DIC = 60
 stride = 1
@@ -36,6 +36,8 @@ learning_rate = 1
 momentum = 0.9 #0.9
 weight_decay=0
 k = 30
+# dropout parameter
+p=0.1
 
 # Local dictionary dimensions
 atom_r = 28
@@ -53,7 +55,7 @@ trans = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,
 train_set = dsets.MNIST(root=root, train=True, transform=trans, download=download)
 test_set = dsets.MNIST(root=root, train=False, transform=trans)
 
-idx = list(range(60000))
+idx = list(range(20000))
 train_sampler = SubsetRandomSampler(idx)
 
 train_loader = torch.utils.data.DataLoader(
@@ -89,9 +91,13 @@ cost_function = nn.MSELoss(size_average=True)
 
 # Train Convolutional Sparse Coder
 # CSC = scc.train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, optimizer, batch_size)
-CSC = scc.train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parameters, learning_rate, momentum, weight_decay, batch_size)
+CSC = scc.train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parameters, learning_rate, momentum, weight_decay, batch_size, p)
 print("Training seqeunce finished")
+filter_dims = list(np.shape(CSC.D_trans.weight.data.numpy()))
 
+# Get CSC ready to process a few inputs
+CSC.batch_size = 3
+CSC.mask = torch.ones(3, filter_dims[0],1,1)
 
 print("Plotting learned filters after training")
 # Plot all filters at the end of the training sequence
@@ -102,7 +108,6 @@ plt.imshow(rescale(M, scale =4, mode='constant'),cmap='gray')
 plt.axis('off')
 plt.show(block = True)
 
-CSC.batch_size = 3
 
 print("Testing model on a few images from the training set")
 # Test reconstruction capabilities of trained CSC, first extract some test examples

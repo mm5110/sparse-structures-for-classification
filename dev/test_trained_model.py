@@ -45,15 +45,14 @@ CSC.batch_size = batch_size
 filter_dims = list(np.shape(CSC.D_trans.weight.data.numpy()))
 CSC.mask = torch.ones(batch_size, filter_dims[0], 1,1)
 # Test reconstruction capabilities of trained CSC, first extract some test examples
-test_Y = Variable(torch.unsqueeze(test_set.test_data, dim=1), volatile=True).type(torch.FloatTensor)/255.   # shape from (2000, 28, 28) to (2000, 1, 28, 28), value in range(0,1)
-test_Y =Variable(test_Y.data[:80])
+test_Y = Variable(torch.unsqueeze(test_set.test_data[:batch_size], dim=1)).type(torch.FloatTensor)/255.   # shape from (2000, 28, 28) to (2000, 1, 28, 28), value in range(0,1)
 #  Calculate the latent representation
-test_X = CSC.forward(test_Y)
-test_Y_recon = CSC.reverse(test_X)
+test_X, SC_error_percent, numb_SC_iterations, filters_selected = CSC.forward(test_Y)
+test_Y_recon = CSC.D(test_X)
 
-id1 = 4
-id2 = 24
-id3 = 12
+id1 = 3
+id2 = 12
+id3 = 37
 
 # Plot original images side by side with reconstructions to get feel for how successful training was
 orig_image1 = test_Y[id1][0].data.numpy()

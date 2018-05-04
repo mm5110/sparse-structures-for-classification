@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import random
 import os
 import yaml
+import csv
+import datetime
 
 import torch
 import torch.nn as nn
@@ -84,6 +86,13 @@ def load_SL_CSC_FISTA(filename):
 	# Return model 
 	return CSC
 
+def log_training_data(log_file, initialise, log_data, fieldnames):
+	with open(log_file, 'w') as csvfile:
+		writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+		if initialise ==True:
+			writer.writeheader()
+		writer = writer.writerow({fieldnames[0]: log_data[0], fieldnames[1]: log_data[1], fieldnames[2]: log_data[2], fieldnames[3]: log_data[3], fieldnames[4]: log_data[4], fieldnames[5]: log_data[5], fieldnames[6]: log_data[6], fieldnames[7]: log_data[7]})
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
@@ -108,7 +117,7 @@ def hard_threshold_k(X, k):
 	mask = Variable(torch.Tensor( (np.abs(Gamma.data.numpy())>T.numpy()) + 0.))
 	Gamma = Gamma * mask
 	Gamma = Gamma.view(X.data.shape)
-	return (Gamma)
+	return Gamma, mask.data.nonzero()
 
 def project_onto_sup(X, sup):
 	X_numpy = X.data.numpy()
@@ -138,15 +147,20 @@ def create_dropout_mask(numb_dp, numb_atoms, numb_r, numb_c, active_filter_inds)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # PRIMARY ALGORITHM FUNCTIONS
-def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parameters, learning_rate, momentum, weight_decay, batch_size):	
+def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parameters, learning_rate, momentum, weight_decay, batch_size, p):	
 	print("Training SL-CSC. Batch size is: " + repr(batch_size))
 	# Define optimizer
 	optimizer = torch.optim.SGD(CSC_parameters, lr=learning_rate, momentum=momentum, weight_decay=weight_decay, nesterov=True)
-	# Define variable needed for dropout
-	p=0.05
 	# Initialise variables needed to plot a random sample of three kernels as they are trained
 	filter_dims = list(np.shape(CSC.D_trans.weight.data.numpy()))
 	idx = random.sample(range(0, filter_dims[0]), 3)
+	# Prepare logging files and data
+	time_str = str(datetime.datetime.now())
+	fieldnames = ['Epoch', 'Batch Number', 'Total Batch Number', 'l2 SC', 'Number SC Iterations', 'l2 End', 'Average Sparsity', 'Cumulative Filters Trained']
+	initialise = True
+	training_log_filename = 'log_data/' + time_str + '_' + str(CSC.forward_type) + '_' + 'training_log.csv'
+	activation_data_filename = 'log_data/' +time_str + '_' + str(CSC.forward_type) + '_' + 'activations'
+	filter_activations = np.zeros(filter_dims[0])	
 	# Prepare plots of filters
 	plt.ion()
 	plt.show()
@@ -169,7 +183,22 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parame
 			# 	X = CSC.D_trans(inputs).detach()
 			# else:
 			# 	X = CSC.forward(inputs).detach()
-			X = CSC.forward(inputs).detach()
+			X, SC_error_percent, numb_SC_iterations, filters_selected = CSC.forward(inputs)
+			X = X.detach()
+			# filters_selected = filters_selected.numpy()
+			for l in range(len(filters_selected)):
+				filter_activations[filters_selected[l][1]] = filter_activations[filters_selected[l][1]] + 1
+
+			plt.figure(10)
+			plt.clf()
+			plt.hist(filter_activations, bins=50)  # arguments are passed to np.histogram
+			plt.title("Histogram of filter activations, epoch Number: {0:1.0f}".format(epoch) + ", batch number: {0:1.0f}".format(i+1))
+			plt.ylabel("Number of filters")
+			plt.xlabel("Activation frequency bin")
+			plt.draw()
+			plt.pause(0.001)
+
+			average_number_nonzeros = X.data.nonzero().numpy().shape[0]/input_dims[0]
 			# Fix sparse code and update dictionary
 			print("Running dictionary update")
 			for j in range(T_DIC):
@@ -187,6 +216,7 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parame
 				if j==0 or (j+1)%20 == 0:
 					print("Average loss per data point at iteration {0:1.0f}".format(j+1) + " of SGD: {0:1.4f}".format(np.asscalar(loss.data.numpy())))
 					plt.figure(1)
+					plt.clf()
 					plt.subplot(1,3,1)
 					plt.imshow((CSC.D.weight[idx[0]][0].data.numpy()), cmap='gray')
 					plt.title("Filter "+repr(idx[0]))
@@ -198,8 +228,8 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parame
 					plt.imshow((CSC.D.weight[idx[2]][0].data.numpy()), cmap='gray')
 					plt.title("Filter "+repr(idx[2]))
 					plt.draw()
-					plt.pause(0.001)			
-			
+					plt.pause(0.001)
+
 			l2_error_percent = 100*np.sum((inputs-CSC.D(X)).data.numpy()**2)/ np.sum((inputs).data.numpy()**2)
 			print("After " +repr(j+1) + " iterations of SGD, average l2 error over batch: {0:1.2f}".format(l2_error_percent) + "%")
 			# Normalise each atom / kernel
@@ -208,9 +238,20 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parame
 			CSC.D_trans.weight.data = CSC.D.weight.data.permute(0,1,3,2)
 			# Reset optimizer
 			optimizer = torch.optim.SGD(CSC_parameters, lr=learning_rate, momentum=momentum, weight_decay=weight_decay, nesterov=True)
-	
+			# Log training data
+			log_data = [epoch, i, epoch*batch_size+i, SC_error_percent, numb_SC_iterations, l2_error_percent, average_number_nonzeros, np.count_nonzero(filter_activations)]
+			log_training_data(training_log_filename, initialise, log_data, fieldnames)
+			initialise = False
 	# Reset the mask for non training state (i.e. no dropout)
 	CSC.mask = torch.ones(input_dims[0], filter_dims[0], (input_dims[2]-filter_dims[2]+1), (input_dims[3]-filter_dims[3]+1))
+	# Save down the filter activations
+	np.save(activation_data_filename, filter_activations)
+	# Plot filter activations
+	# print("Plotting filter activations")
+	# plt.figure(9)
+	# idx = np.arange(batch_size)
+	# plt.bar(idx, filter_activations)
+	# plt.show(block = True)
 	# Return trained CSC
 	return CSC
 
@@ -266,7 +307,7 @@ class SL_CSC_FISTA(nn.Module):
 				error_percent = l2_error*100/(np.sum((Y).data.numpy()**2))
 				# print("Iteration: "+repr(i) + ", l2 error:{0:1.2f}".format(l2_error) + ", l1 error: {0:1.2f}".format(l1_error) + ", l2 error percent: {0:1.2f}".format(error_percent)+ "%, Total FISTA error: {0:1.2f}".format(FISTA_error) + ", Av. sparsity: {0:1.2f}".format(percent_zeros_per_image) +"%")
 				print("After " +repr(i+1) + " iterations of FISTA, average l2 error over batch: {0:1.2f}".format(error_percent) + "% , Av. sparsity per image: {0:1.2f}".format(percent_zeros_per_image) +"%")
-		return X2
+		return X2, error_percent
 
 
 	def reverse(self, X):
@@ -351,7 +392,7 @@ class SL_CSC_IHT(nn.Module):
 		while run == True:
 			g = self.dropout(self.D_trans(Y-self.D(self.dropout(X1))))
 			HT_arg = X1 + alpha*g
-			X2 = hard_threshold_k(HT_arg, self.k)
+			X2, filters_selected = hard_threshold_k(HT_arg, self.k)
 			X2_error = np.sum(((Y-self.D(self.dropout(X2))).data.numpy())**2)
 			# print(X1_error)
 			# print(X2_error)
@@ -378,7 +419,7 @@ class SL_CSC_IHT(nn.Module):
 		# 	else:
 		# 		self.k = temp
 		# Return value of k calculated
-		return X1
+		return X1, error_percent, i, filters_selected
 
 	
 	def reverse(self, x):
