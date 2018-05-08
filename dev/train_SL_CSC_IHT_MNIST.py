@@ -19,30 +19,38 @@ import sparse_coding_classifier_functions as scc
 from AuxiliaryFunctions import showFilters
 from skimage.transform import rescale, resize, downscale_local_mean
 
+
+
 	
 # MAIN LOOP
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Define hardware
+use_cuda = True
+can_use_cuda = use_cuda and torch.cuda.is_available()
+device = torch.device("cuda:0" if can_use_cuda else "cpu")
+dtype = torch.FloatTensor
+
 # Path to save model to
 filename = "SL_CSC_IHT"
 
 # Training hyperparameters
-num_epochs = 1 #100
-batch_size = 200
-T_SC = 100
-T_DIC = 60
+num_epochs = 100 #100
+batch_size = 512
+T_SC = 50
+T_DIC = 1
 stride = 1
-learning_rate = 1
-momentum = 0.9 #0.9
+learning_rate = 0.0005
+momentum = 0.9 
 weight_decay=0
-k = 30
+k = 50
 # dropout parameter
-p=0.1
+p=0.5
 
 # Local dictionary dimensions
 atom_r = 28
 atom_c = 28
-numb_atom = 1000
+numb_atom = 500
 dp_channels = 1 
 
 # Load MNIST
@@ -55,7 +63,7 @@ trans = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,
 train_set = dsets.MNIST(root=root, train=True, transform=trans, download=download)
 test_set = dsets.MNIST(root=root, train=False, transform=trans)
 
-idx = list(range(20000))
+idx = list(range(60000))
 train_sampler = SubsetRandomSampler(idx)
 
 train_loader = torch.utils.data.DataLoader(
@@ -77,7 +85,7 @@ print(train_set.train_data.size())               # (60000, 28, 28)
 print(train_set.train_labels.size())               # (60000)
 
 # Intitilise Convolutional Sparse Coder CSC
-CSC = scc.SL_CSC_IHT(stride, dp_channels, atom_r, atom_c, numb_atom, T_SC, k)
+CSC = scc.SL_CSC_IHT(stride, dp_channels, atom_r, atom_c, numb_atom, T_SC, k).to(device)
 
 # Define optimisation parameters
 CSC_parameters = [
@@ -102,12 +110,11 @@ CSC.mask = torch.ones(3, filter_dims[0],1,1)
 print("Plotting learned filters after training")
 # Plot all filters at the end of the training sequence
 D = CSC.D.weight.data.numpy()
-M = showFilters(D,10,10)
-plt.figure(5, figsize=(20,20))
+M = showFilters(D,20,20)
+plt.figure(1, figsize=(15,15))
 plt.imshow(rescale(M, scale =4, mode='constant'),cmap='gray')
 plt.axis('off')
 plt.show(block = True)
-
 
 print("Testing model on a few images from the training set")
 # Test reconstruction capabilities of trained CSC, first extract some test examples
@@ -123,7 +130,7 @@ orig_image3 = test_Y[2][0].data.numpy()
 recon_image1 = test_Y_recon[0][0].data.numpy()
 recon_image2 = test_Y_recon[1][0].data.numpy()
 recon_image3 = test_Y_recon[2][0].data.numpy()
-plt.figure(6)
+plt.figure(2)
 plt.subplot(3,2,1)
 plt.imshow(orig_image1, cmap='gray')
 plt.title('Original Image')

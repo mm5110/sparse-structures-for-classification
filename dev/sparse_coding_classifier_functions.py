@@ -17,6 +17,11 @@ from torch.autograd import Variable
 from torch.utils.data.sampler import SubsetRandomSampler
 
 
+# Define hardware
+use_cuda = True
+can_use_cuda = use_cuda and torch.cuda.is_available()
+device = torch.device("cuda" if can_use_cuda else "cpu")
+dtype = torch.float
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # SAVE AND LOAD FUNCTIONS
@@ -87,11 +92,15 @@ def load_SL_CSC_FISTA(filename):
 	return CSC
 
 def log_training_data(log_file, initialise, log_data, fieldnames):
-	with open(log_file, 'w') as csvfile:
-		writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-		if initialise ==True:
+	if initialise == True:
+		with open(log_file, 'w') as csvfile:
+			writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 			writer.writeheader()
-		writer = writer.writerow({fieldnames[0]: log_data[0], fieldnames[1]: log_data[1], fieldnames[2]: log_data[2], fieldnames[3]: log_data[3], fieldnames[4]: log_data[4], fieldnames[5]: log_data[5], fieldnames[6]: log_data[6], fieldnames[7]: log_data[7]})
+			writer.writerow({fieldnames[0]: log_data[0], fieldnames[1]: log_data[1], fieldnames[2]: log_data[2], fieldnames[3]: log_data[3], fieldnames[4]: log_data[4], fieldnames[5]: log_data[5], fieldnames[6]: log_data[6], fieldnames[7]: log_data[7]})
+	else:
+		with open(log_file, 'a') as csvfile:
+			writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+			writer.writerow({fieldnames[0]: log_data[0], fieldnames[1]: log_data[1], fieldnames[2]: log_data[2], fieldnames[3]: log_data[3], fieldnames[4]: log_data[4], fieldnames[5]: log_data[5], fieldnames[6]: log_data[6], fieldnames[7]: log_data[7]})
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -150,7 +159,8 @@ def create_dropout_mask(numb_dp, numb_atoms, numb_r, numb_c, active_filter_inds)
 def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parameters, learning_rate, momentum, weight_decay, batch_size, p):	
 	print("Training SL-CSC. Batch size is: " + repr(batch_size))
 	# Define optimizer
-	optimizer = torch.optim.SGD(CSC_parameters, lr=learning_rate, momentum=momentum, weight_decay=weight_decay, nesterov=True)
+	# optimizer = torch.optim.SGD(CSC_parameters, lr=learning_rate, momentum=momentum, weight_decay=weight_decay, nesterov=True)
+	optimizer = torch.optim.Adam(CSC_parameters, lr=learning_rate,weight_decay=weight_decay)
 	# Initialise variables needed to plot a random sample of three kernels as they are trained
 	filter_dims = list(np.shape(CSC.D_trans.weight.data.numpy()))
 	idx = random.sample(range(0, filter_dims[0]), 3)
@@ -160,7 +170,10 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parame
 	initialise = True
 	training_log_filename = 'log_data/' + time_str + '_' + str(CSC.forward_type) + '_' + 'training_log.csv'
 	activation_data_filename = 'log_data/' +time_str + '_' + str(CSC.forward_type) + '_' + 'activations'
-	filter_activations = np.zeros(filter_dims[0])	
+	filter_activations = np.zeros(filter_dims[0])
+	# Variables for plotting error as go along
+	counter = 1
+	l2_error_list = np.empty(0)	
 	# Prepare plots of filters
 	plt.ion()
 	plt.show()
@@ -168,8 +181,8 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parame
 		print("Training epoch " + repr(epoch+1) + " of " + repr(num_epochs))
 		for i, (inputs, labels) in enumerate(train_loader):
 			print("Batch number " + repr(i+1))
-			inputs = Variable(inputs)
-			labels = Variable(labels)
+			inputs = Variable(inputs).to(device)
+			labels = Variable(labels).to(device)
 			# Calculate and update step size for sparse coding step
 			input_dims = list(inputs.size())
 			CSC.batch_size = input_dims[0]
@@ -213,9 +226,12 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parame
 				# Update each parameter according to the optimizer update rule (single step)
 				optimizer.step()
 				# At the end of each batch plot a random sample of kernels to observe progress
-				if j==0 or (j+1)%20 == 0:
+				if j==0 or (j+1)%5 == 0:
+					# coeff_l2_size = np.sum(np.squeeze(X.data.numpy())**2,axis =0)
+					# coeff_l2_size_order = coeff_l2_size.argsor()	
+					# idx = 
 					print("Average loss per data point at iteration {0:1.0f}".format(j+1) + " of SGD: {0:1.4f}".format(np.asscalar(loss.data.numpy())))
-					plt.figure(1)
+					plt.figure(11)
 					plt.clf()
 					plt.subplot(1,3,1)
 					plt.imshow((CSC.D.weight[idx[0]][0].data.numpy()), cmap='gray')
@@ -231,17 +247,30 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parame
 					plt.pause(0.001)
 
 			l2_error_percent = 100*np.sum((inputs-CSC.D(X)).data.numpy()**2)/ np.sum((inputs).data.numpy()**2)
+			l2_error_list = np.append(l2_error_list, l2_error_percent)
 			print("After " +repr(j+1) + " iterations of SGD, average l2 error over batch: {0:1.2f}".format(l2_error_percent) + "%")
+
+			plt.figure(12)
+			plt.clf()
+			plt.plot(np.arange(counter), l2_error_list)
+			plt.title("Training error over time")
+			plt.ylabel("Percentage error")
+			plt.xlabel("Number of batches")
+			plt.draw()
+			plt.pause(0.001)
 			# Normalise each atom / kernel
 			CSC.normalise_weights()
 			# Ensure that weights for the reverse and forward operations are consistent	
 			CSC.D_trans.weight.data = CSC.D.weight.data.permute(0,1,3,2)
 			# Reset optimizer
-			optimizer = torch.optim.SGD(CSC_parameters, lr=learning_rate, momentum=momentum, weight_decay=weight_decay, nesterov=True)
+			optimizer = torch.optim.Adam(CSC_parameters, lr=learning_rate,weight_decay=weight_decay)
+			# optimizer = torch.optim.SGD(CSC_parameters, lr=learning_rate, momentum=momentum, weight_decay=weight_decay, nesterov=True)
 			# Log training data
 			log_data = [epoch, i, epoch*batch_size+i, SC_error_percent, numb_SC_iterations, l2_error_percent, average_number_nonzeros, np.count_nonzero(filter_activations)]
 			log_training_data(training_log_filename, initialise, log_data, fieldnames)
 			initialise = False
+			# Update counter
+			counter=counter+1
 	# Reset the mask for non training state (i.e. no dropout)
 	CSC.mask = torch.ones(input_dims[0], filter_dims[0], (input_dims[2]-filter_dims[2]+1), (input_dims[3]-filter_dims[3]+1))
 	# Save down the filter activations
@@ -281,7 +310,7 @@ class SL_CSC_FISTA(nn.Module):
 		y_dims = list(Y.data.size())
 		w_dims = list(self.D_trans.weight.data.size())
 		# Initialise our guess for X
-		X1 = Variable(torch.rand(y_dims[0], w_dims[0], (y_dims[2]-w_dims[2]+1),(y_dims[3]-w_dims[3]+1)))
+		X1 = Variable(torch.rand(y_dims[0], w_dims[0], (y_dims[2]-w_dims[2]+1),(y_dims[3]-w_dims[3]+1))).to(device)
 		# Calculate first update
 		X2, FISTA_error, alpha = self.linesearch(Y,X1)
 		# Iterate FISTA for a prescribed number of iterations
@@ -383,7 +412,7 @@ class SL_CSC_IHT(nn.Module):
 		w_dims = list(self.D_trans.weight.data.size())
 		# Initialise X as zero tensor
 		X1 = Variable(torch.zeros(y_dims[0], w_dims[0], (y_dims[2]-w_dims[2]+1),(y_dims[3]-w_dims[3]+1)))
-		alpha = 0.005 # Delete after testing
+		alpha = 0.1 #0.005 # Delete after testing
 		X1_error = np.sum((Y).data.numpy()**2)
 		X2_error = 0
 		i=0
