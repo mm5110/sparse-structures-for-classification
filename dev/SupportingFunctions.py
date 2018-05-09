@@ -33,7 +33,7 @@ using_azure = True
 # SUPPORTING ALGORITHM FUNCTIONS
 def soft_thresh(x, alpha):
 	# x is a pytorch variable, extract weights tensor and convert to a numpy array
-	x_numpy = x.data.numpy()
+	x_numpy = x.data.cpu().numpy()
 	# Apply soft thresholding function to numpy array 
 	z = np.absolute(x_numpy) - alpha
 	z[z<0] = 0
@@ -48,13 +48,13 @@ def hard_threshold_k(X, k):
 	m = X.data.shape[1]
 	a,_ = torch.abs(Gamma).data.sort(dim=1,descending=True)
 	T = torch.mm(a[:,k].unsqueeze(1),torch.Tensor(np.ones((1,m))))
-	mask = Variable(torch.Tensor( (np.abs(Gamma.data.numpy())>T.numpy()) + 0.))
+	mask = Variable(torch.Tensor( (np.abs(Gamma.data.numpy())>T.cpu().numpy()) + 0.))
 	Gamma = Gamma * mask
 	Gamma = Gamma.view(X.data.shape)
 	return Gamma, mask.data.nonzero()
 
 def project_onto_sup(X, sup):
-	X_numpy = X.data.numpy()
+	X_numpy = X.data.cpu().numpy()
 	X_dims = list(np.shape(X_numpy))
 	X_new = np.zeros((X_dims[0], X_dims[1], X_dims[2], X_dims[3]))
 	for i in range(X_dims[0]):
@@ -84,7 +84,7 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parame
 	# Define optimizer
 	optimizer = torch.optim.Adam(CSC_parameters, lr=learning_rate,weight_decay=weight_decay)
 	# Initialise variables needed to plot a random sample of three kernels as they are trained
-	filter_dims = list(np.shape(CSC.D_trans.weight.data.numpy()))
+	filter_dims = list(np.shape(CSC.D_trans.weight.data.cpu().numpy()))
 	idx = random.sample(range(0, filter_dims[0]), 3)
 	# Prepare logging files and data
 	run_code = 1
@@ -130,7 +130,7 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parame
 				plt.draw()
 				plt.pause(0.001)
 			# Calculate the average number of zeros per data input
-			average_number_nonzeros = X.data.nonzero().numpy().shape[0]/input_dims[0]
+			average_number_nonzeros = X.data.nonzero().cpu().numpy().shape[0]/input_dims[0]
 			# Fix sparse code and update dictionary
 			print("Running dictionary update")
 			for j in range(T_DIC):
@@ -146,24 +146,24 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parame
 				optimizer.step()
 				# At the end of each batch plot a random sample of kernels to observe progress
 				if j==0 or (j+1)%5 == 0:
-					print("Average loss per data point at iteration {0:1.0f}".format(j+1) + " of SGD: {0:1.4f}".format(np.asscalar(loss.data.numpy())))
+					print("Average loss per data point at iteration {0:1.0f}".format(j+1) + " of SGD: {0:1.4f}".format(np.asscalar(loss.data.cpu().numpy())))
 					if using_azure == False:
 						plt.figure(11)
 						plt.clf()
 						plt.subplot(1,3,1)
-						plt.imshow((CSC.D.weight[idx[0]][0].data.numpy()), cmap='gray')
+						plt.imshow((CSC.D.weight[idx[0]][0].data.cpu().numpy()), cmap='gray')
 						plt.title("Filter "+repr(idx[0]))
 						plt.subplot(1,3,2)
-						plt.imshow((CSC.D.weight[idx[1]][0].data.numpy()), cmap='gray', )
+						plt.imshow((CSC.D.weight[idx[1]][0].data.cpu().numpy()), cmap='gray', )
 						plt.title("Filter "+repr(idx[1]))
-						plt.xlabel("Epoch Number: " + repr(epoch)+ ", Batch number: " + repr(i+1) + ", Average loss: {0:1.4f}".format(np.asscalar(loss.data.numpy())))
+						plt.xlabel("Epoch Number: " + repr(epoch)+ ", Batch number: " + repr(i+1) + ", Average loss: {0:1.4f}".format(np.asscalar(loss.data.cpu().numpy())))
 						plt.subplot(1,3,3)
-						plt.imshow((CSC.D.weight[idx[2]][0].data.numpy()), cmap='gray')
+						plt.imshow((CSC.D.weight[idx[2]][0].data.cpu().numpy()), cmap='gray')
 						plt.title("Filter "+repr(idx[2]))
 						plt.draw()
 						plt.pause(0.001)
 			# Calculate l2 error
-			l2_error_percent = 100*np.sum((inputs-CSC.D(X)).data.numpy()**2)/ np.sum((inputs).data.numpy()**2)
+			l2_error_percent = 100*np.sum((inputs-CSC.D(X)).data.cpu().numpy()**2)/ np.sum((inputs).data.cpu().numpy()**2)
 			l2_error_list = np.append(l2_error_list, l2_error_percent)
 			print("After " +repr(j+1) + " iterations of SGD, average l2 error over batch: {0:1.2f}".format(l2_error_percent) + "%")
 			# Plot training error overtime

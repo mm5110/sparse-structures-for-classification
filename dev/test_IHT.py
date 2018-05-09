@@ -43,7 +43,7 @@ test_loader = torch.utils.data.DataLoader(
 # Load in model
 CSC = af.load_SL_CSC_IHT(filename)
 CSC.batch_size = batch_size
-filter_dims = list(np.shape(CSC.D_trans.weight.data.numpy()))
+filter_dims = list(np.shape(CSC.D_trans.weight.data.cpu().numpy()))
 CSC.mask = torch.ones(batch_size, filter_dims[0], 1,1)
 
 # View training training data
@@ -65,7 +65,7 @@ plt.xlabel("Number of batches")
 plt.show()
 
 # Plot all filters at the end of the training sequence
-D = CSC.D.weight.data.numpy()
+D = CSC.D.weight.data.cpu().numpy()
 M = af.showFilters(D,20,20)
 plt.figure(3, figsize=(10,10))
 plt.imshow(rescale(M, scale=4, mode='constant'),cmap='gray')
@@ -88,17 +88,17 @@ test_Y = Variable(torch.unsqueeze(test_set.test_data[:batch_size], dim=1)).type(
 #  Calculate the latent representation
 test_X, SC_error_percent, numb_SC_iterations, filters_selected = CSC.forward(test_Y)
 test_Y_recon = CSC.D(test_X)
-l2_error_percent = 100*np.sum((test_Y-test_Y_recon).data.numpy()**2)/ np.sum(test_Y.data.numpy()**2)
+l2_error_percent = 100*np.sum((test_Y-test_Y_recon).data.cpu().numpy()**2)/ np.sum(test_Y.data.cpu().numpy()**2)
 id1 = 3
 id2 = 12
 id3 = 37
 # Plot original images side by side with reconstructions to get feel for how successful training was
-orig_image1 = test_Y[id1][0].data.numpy()
-orig_image2 = test_Y[id2][0].data.numpy()
-orig_image3 = test_Y[id3][0].data.numpy()
-recon_image1 = test_Y_recon[id1][0].data.numpy()
-recon_image2 = test_Y_recon[id2][0].data.numpy()
-recon_image3 = test_Y_recon[id3][0].data.numpy()
+orig_image1 = test_Y[id1][0].data.cpu().numpy()
+orig_image2 = test_Y[id2][0].data.cpu().numpy()
+orig_image3 = test_Y[id3][0].data.cpu().numpy()
+recon_image1 = test_Y_recon[id1][0].data.cpu().numpy()
+recon_image2 = test_Y_recon[id2][0].data.cpu().numpy()
+recon_image3 = test_Y_recon[id3][0].data.cpu().numpy()
 plt.figure(5)
 plt.subplot(3,2,1)
 plt.imshow(orig_image1, cmap='gray')
