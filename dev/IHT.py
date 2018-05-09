@@ -52,7 +52,7 @@ class SL_CSC_IHT(nn.Module):
 		# Initialise X as zero tensor
 		X1 = Variable(torch.zeros(y_dims[0], w_dims[0], (y_dims[2]-w_dims[2]+1),(y_dims[3]-w_dims[3]+1)))
 		alpha = 0.15 #0.005 # Delete after testing
-		X1_error = np.sum((Y).data.numpy()**2)
+		X1_error = np.sum((Y).data.cpu().numpy()**2)
 		X2_error = 0
 		i=0
 		run = True
@@ -60,7 +60,7 @@ class SL_CSC_IHT(nn.Module):
 			g = self.dropout(self.D_trans(Y-self.D(self.dropout(X1))))
 			HT_arg = X1 + alpha*g
 			X2, filters_selected = sf.hard_threshold_k(HT_arg, self.k)
-			X2_error = np.sum(((Y-self.D(self.dropout(X2))).data.numpy())**2)
+			X2_error = np.sum(((Y-self.D(self.dropout(X2))).data.cpu().numpy())**2)
 			if X2_error < X1_error:
 				X1 = X2
 				X1_error = X2_error
@@ -69,10 +69,10 @@ class SL_CSC_IHT(nn.Module):
 			if i==0 or (i+1)%1 == 0:
 				# After run IHT print out the result
 				l2_error = X1_error
-				av_num_zeros_per_image = X1.data.nonzero().numpy().shape[0]/y_dims[0]
+				av_num_zeros_per_image = X1.data.nonzero().cpu().numpy().shape[0]/y_dims[0]
 				percent_zeros_per_image = 100*av_num_zeros_per_image/(y_dims[2]*y_dims[3])
 				# pix_error = l2_error/(y_dims[0]*y_dims[2]*y_dims[3])
-				error_percent = l2_error*100/(np.sum((Y).data.numpy()**2))
+				error_percent = l2_error*100/(np.sum((Y).data.cpu().numpy()**2))
 				print("After " +repr(i+1) + " iterations of IHT, average l2 error over batch: {0:1.2f}".format(error_percent) + "% , Av. sparsity per image: {0:1.2f}".format(percent_zeros_per_image) +"%")
 			i=i+1
 		return X1, error_percent, i, filters_selected
@@ -83,10 +83,10 @@ class SL_CSC_IHT(nn.Module):
 		return out
 
 	def normalise_weights(self):
-		filter_dims = list(np.shape(self.D.weight.data.numpy()))
+		filter_dims = list(np.shape(self.D.weight.data.cpu().numpy()))
 		for i in range(filter_dims[0]):
 			for j in range(filter_dims[1]):
-				self.D.weight.data[i][j] = self.D.weight.data[i][j]/((np.sum(self.D.weight.data[i][j].numpy()**2))**0.5)
+				self.D.weight.data[i][j] = self.D.weight.data[i][j]/((np.sum(self.D.weight.data[i][j].cpu().numpy()**2))**0.5)
 
 	def dropout(self,X):
 		X_dropout = Variable(X.data*self.mask)
