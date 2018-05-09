@@ -27,22 +27,21 @@ use_cuda = True
 can_use_cuda = use_cuda and torch.cuda.is_available()
 device = torch.device("cuda" if can_use_cuda else "cpu")
 dtype = torch.float
-using_azure = False
+using_azure = True
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 class SL_CSC_IHT(nn.Module):
-	def __init__(self, stride=1, dp_channels=1, atom_r=1, atom_c=1, numb_atom=1, T_SC=1, k=1):
+	def __init__(self, stride=1, dp_channels=1, atom_r=1, atom_c=1, numb_atom=1, k=1):
 		super(SL_CSC_IHT, self).__init__()
 		self.D_trans = nn.Conv2d(dp_channels, numb_atom, (atom_r, atom_c), stride, padding=0, dilation=1, groups=1, bias=False)
 		# self.dropout = nn.Dropout2d(p=0.5, inplace=False)
 		self.D = nn.ConvTranspose2d(numb_atom, dp_channels, (atom_c, atom_r), stride, padding=0, output_padding=0, groups=1, bias=False, dilation=1)
 		self.normalise_weights()
 		self.D_trans.weight.data = self.D.weight.data.permute(0,1,3,2)
-		self.k = k
-		self.T_SC=T_SC
 		self.forward_type = 'IHT'
 		self.batch_size = 1
+		self.k=k
 		self.mask = torch.ones(self.batch_size, numb_atom, atom_r, atom_c)
 
 
@@ -52,25 +51,21 @@ class SL_CSC_IHT(nn.Module):
 		w_dims = list(self.D_trans.weight.data.size())
 		# Initialise X as zero tensor
 		X1 = Variable(torch.zeros(y_dims[0], w_dims[0], (y_dims[2]-w_dims[2]+1),(y_dims[3]-w_dims[3]+1)))
-		alpha = 0.1 #0.005 # Delete after testing
+		alpha = 0.15 #0.005 # Delete after testing
 		X1_error = np.sum((Y).data.numpy()**2)
 		X2_error = 0
 		i=0
 		run = True
-		# for i in range(0, self.T_SC):
 		while run == True:
 			g = self.dropout(self.D_trans(Y-self.D(self.dropout(X1))))
 			HT_arg = X1 + alpha*g
 			X2, filters_selected = sf.hard_threshold_k(HT_arg, self.k)
 			X2_error = np.sum(((Y-self.D(self.dropout(X2))).data.numpy())**2)
-			# print(X1_error)
-			# print(X2_error)
 			if X2_error < X1_error:
 				X1 = X2
 				X1_error = X2_error
 			else:
 				run = False
-			# X, l2_error, alpha = self.linesearch(Y,X)# uncomment
 			if i==0 or (i+1)%1 == 0:
 				# After run IHT print out the result
 				l2_error = X1_error

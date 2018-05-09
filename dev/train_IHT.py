@@ -26,7 +26,7 @@ use_cuda = True
 can_use_cuda = use_cuda and torch.cuda.is_available()
 device = torch.device("cuda" if can_use_cuda else "cpu")
 dtype = torch.float
-using_azure = False
+using_azure = True
 	
 # MAIN LOOP
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -35,18 +35,18 @@ using_azure = False
 use_cuda = True
 can_use_cuda = use_cuda and torch.cuda.is_available()
 device = torch.device("cuda:0" if can_use_cuda else "cpu")
+print(device)
 dtype = torch.FloatTensor
 
 # Path to save model to
 filename = "SL_CSC_IHT"
 
 # Training hyperparameters
-num_epochs = 1 #100
+num_epochs = 100 #100
 batch_size = 512
-T_SC = 50
 T_DIC = 1
 stride = 1
-learning_rate = 0.0005
+learning_rate = 0.0007
 momentum = 0.9 
 weight_decay=0
 k = 50
@@ -69,7 +69,7 @@ trans = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,
 train_set = dsets.MNIST(root=root, train=True, transform=trans, download=download)
 test_set = dsets.MNIST(root=root, train=False, transform=trans)
 
-idx = list(range(1000))
+idx = list(range(60000))
 train_sampler = SubsetRandomSampler(idx)
 
 train_loader = torch.utils.data.DataLoader(
@@ -91,7 +91,7 @@ print(train_set.train_data.size())               # (60000, 28, 28)
 print(train_set.train_labels.size())               # (60000)
 
 # Intitilise Convolutional Sparse Coder CSC
-CSC = SL_CSC_IHT(stride, dp_channels, atom_r, atom_c, numb_atom, T_SC, k).to(device)
+CSC = SL_CSC_IHT(stride, dp_channels, atom_r, atom_c, numb_atom, k).to(device)
 
 # Define optimisation parameters
 CSC_parameters = [

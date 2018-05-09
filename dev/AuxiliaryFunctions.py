@@ -55,7 +55,6 @@ def save_SL_CSC_IHT(CSC, stride, dp_channels, atom_r, atom_c, numb_atom, filenam
     other_CSC_variable_data["atom_c"] = atom_c
     other_CSC_variable_data["numb_atom"] = numb_atom
     other_CSC_variable_data["k"] = CSC.k
-    other_CSC_variable_data["T_SC"] = CSC.T_SC
     # Save down dictionary in a yaml file
     with open(yml_save_path, 'w') as yaml_file:
         yaml.dump(other_CSC_variable_data, stream=yaml_file, default_flow_style=False)
@@ -66,9 +65,8 @@ def load_SL_CSC_IHT(filename):
     # Load in model
     with open(yml_load_path, 'r') as yaml_file:
         loaded_CSC_vars = yaml.load(yaml_file)
-
     # Initialise and return CSC
-    CSC = IHT.SL_CSC_IHT(loaded_CSC_vars["stride"], loaded_CSC_vars["dp_channels"], loaded_CSC_vars["atom_r"], loaded_CSC_vars["atom_c"], loaded_CSC_vars["numb_atom"], loaded_CSC_vars["T_SC"], loaded_CSC_vars["k"])
+    CSC = IHT.SL_CSC_IHT(loaded_CSC_vars["stride"], loaded_CSC_vars["dp_channels"], loaded_CSC_vars["atom_r"], loaded_CSC_vars["atom_c"], loaded_CSC_vars["numb_atom"], loaded_CSC_vars["k"])
     # Load in network parameters
     CSC.load_state_dict(torch.load(torch_load_path))
     # Return model 
