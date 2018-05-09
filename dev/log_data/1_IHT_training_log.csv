@@ -1,3 +1,2 @@
 Epoch,Batch Number,Total Batch Number,l2 SC,Number SC Iterations,l2 End,Average Sparsity,Cumulative Filters Trained
-0,0,1,97.8192037946,3,96.3906907229,50.0,250
-0,1,2,96.7208321301,3,95.152200164,50.0,379
+0,0,1,97.5241615846,3,96.1326003766,50.0,250

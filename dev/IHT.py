@@ -26,7 +26,7 @@ import SupportingFunctions as sf
 use_cuda = True
 can_use_cuda = use_cuda and torch.cuda.is_available()
 device = torch.device("cuda" if can_use_cuda else "cpu")
-dtype = torch.cuda.float if torch.cuda.is_available() else torch.float
+dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.float
 using_azure = True
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -50,7 +50,7 @@ class SL_CSC_IHT(nn.Module):
 		y_dims = list(Y.data.size())
 		w_dims = list(self.D_trans.weight.data.size())
 		# Initialise X as zero tensor
-		X1 = Variable(torch.zeros(y_dims[0], w_dims[0], (y_dims[2]-w_dims[2]+1),(y_dims[3]-w_dims[3]+1)))
+		X1 = Variable(torch.zeros(y_dims[0], w_dims[0], (y_dims[2]-w_dims[2]+1),(y_dims[3]-w_dims[3]+1)).to(device, dtype = dtype))
 		alpha = 0.15 #0.005 # Delete after testing
 		X1_error = np.sum((Y).data.cpu().numpy()**2)
 		X2_error = 0

@@ -25,18 +25,14 @@ import SupportingFunctions as sf
 use_cuda = True
 can_use_cuda = use_cuda and torch.cuda.is_available()
 device = torch.device("cuda" if can_use_cuda else "cpu")
-dtype = torch.float
+print(device)
+dtype = torch.cuda.float if torch.cuda.is_available() else torch.float
 using_azure = True
 	
 # MAIN LOOP
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-# Define hardware
-use_cuda = True
-can_use_cuda = use_cuda and torch.cuda.is_available()
-device = torch.device("cuda:0" if can_use_cuda else "cpu")
-print(device)
-dtype = torch.FloatTensor
+
 
 # Path to save model to
 filename = "SL_CSC_IHT"
@@ -104,7 +100,7 @@ cost_function = nn.MSELoss(size_average=True)
 # Train Convolutional Sparse Coder
 CSC = sf.train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parameters, learning_rate, momentum, weight_decay, batch_size, p)
 print("Training seqeunce finished")
-filter_dims = list(np.shape(CSC.D_trans.weight.data.numpy()))
+filter_dims = list(np.shape(CSC.D_trans.weight.data.cpu().numpy()))
 
 if using_azure == False:
 	# Get CSC ready to process a few inputs
@@ -114,17 +110,17 @@ if using_azure == False:
 	#  Calculate the latent representation
 	test_X, SC_error_percent, numb_SC_iterations, filters_selected = CSC.forward(test_Y)
 	test_Y_recon = CSC.D(test_X)
-	l2_error_percent = 100*np.sum((test_Y-test_Y_recon).data.numpy()**2)/ np.sum(test_Y.data.numpy()**2)
+	l2_error_percent = 100*np.sum((test_Y-test_Y_recon).data.cpu().numpy()**2)/ np.sum(test_Y.data.cpu().numpy()**2)
 	id1 = 3
 	id2 = 12
 	id3 = 37
 	# Plot original images side by side with reconstructions to get feel for how successful training was
-	orig_image1 = test_Y[id1][0].data.numpy()
-	orig_image2 = test_Y[id2][0].data.numpy()
-	orig_image3 = test_Y[id3][0].data.numpy()
-	recon_image1 = test_Y_recon[id1][0].data.numpy()
-	recon_image2 = test_Y_recon[id2][0].data.numpy()
-	recon_image3 = test_Y_recon[id3][0].data.numpy()
+	orig_image1 = test_Y[id1][0].data.cpu().numpy()
+	orig_image2 = test_Y[id2][0].data.cpu().numpy()
+	orig_image3 = test_Y[id3][0].data.cpu().numpy()
+	recon_image1 = test_Y_recon[id1][0].data.cpu().numpy()
+	recon_image2 = test_Y_recon[id2][0].data.cpu().numpy()
+	recon_image3 = test_Y_recon[id3][0].data.cpu().numpy()
 	plt.figure(5)
 	plt.subplot(3,2,1)
 	plt.imshow(orig_image1, cmap='gray')
