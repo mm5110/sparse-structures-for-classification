@@ -72,7 +72,6 @@ class SL_CSC_IHT(nn.Module):
 				l2_error = X1_error
 				av_num_zeros_per_image = X1.data.nonzero().cpu().numpy().shape[0]/y_dims[0]
 				percent_zeros_per_image = 100*av_num_zeros_per_image/(y_dims[2]*y_dims[3])
-				# pix_error = l2_error/(y_dims[0]*y_dims[2]*y_dims[3])
 				error_percent = l2_error*100/(np.sum((Y).data.cpu().numpy()**2))
 				print("After " +repr(i+1) + " iterations of IHT, average l2 error over batch: {0:1.2f}".format(error_percent) + "% , Av. sparsity per image: {0:1.2f}".format(percent_zeros_per_image) +"%")
 			i=i+1
