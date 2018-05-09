@@ -26,7 +26,7 @@ import AuxiliaryFunctions as af
 use_cuda = True
 can_use_cuda = use_cuda and torch.cuda.is_available()
 device = torch.device("cuda" if can_use_cuda else "cpu")
-dtype = torch.float
+dtype = torch.cuda.float if torch.cuda.is_available() else torch.float
 using_azure = True
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
