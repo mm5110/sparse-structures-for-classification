@@ -37,7 +37,7 @@ def hard_threshold_k(X, k):
 	Gamma = Gamma.view(Gamma.data.shape[0], Gamma.data.shape[1]*Gamma.data.shape[2]*Gamma.data.shape[3])
 	m = X.data.shape[1]
 	a,_ = torch.abs(Gamma).data.sort(dim=1,descending=True)
-	T = torch.mm(a[:,k].unsqueeze(1),torch.Tensor(np.ones((1,m))))
+	T = torch.mm(a[:,k].unsqueeze(1),torch.Tensor(np.ones((1,m))).to(device, dtype=dtype))
 	mask = Variable(torch.Tensor( (np.abs(Gamma.data.numpy())>T.cpu().numpy()) + 0.)).to(device, dtype=dtype)
 	Gamma = Gamma * mask
 	Gamma = Gamma.view(X.data.shape)
