@@ -61,7 +61,7 @@ dp_channels = 1
 
 # Load MNIST
 root = './data'
-download = False  # download MNIST dataset or not
+download = True  # download MNIST dataset or not
 
 # Access MNIST dataset and define processing transforms to proces
 trans = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
