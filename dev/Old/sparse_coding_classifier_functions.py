@@ -103,8 +103,6 @@ def log_training_data(log_file, initialise, log_data, fieldnames):
 			writer.writerow({fieldnames[0]: log_data[0], fieldnames[1]: log_data[1], fieldnames[2]: log_data[2], fieldnames[3]: log_data[3], fieldnames[4]: log_data[4], fieldnames[5]: log_data[5], fieldnames[6]: log_data[6], fieldnames[7]: log_data[7]})
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-
 # SUPPORTING ALGORITHM FUNCTIONS
 def soft_thresh(x, alpha):
 	# x is a pytorch variable, extract weights tensor and convert to a numpy array
