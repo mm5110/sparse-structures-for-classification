@@ -43,7 +43,7 @@ class SL_CSC_IHT(nn.Module):
 		self.forward_type = 'IHT'
 		self.batch_size = 1
 		self.k=k
-		self.mask = torch.ones(self.batch_size, numb_atom, atom_r, atom_c)
+		self.mask = torch.ones(self.batch_size, numb_atom, atom_r, atom_c).to(dtype=dtype)
 
 
 	def forward(self, Y):
