@@ -32,37 +32,16 @@ using_azure = True
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # SUPPORTING ALGORITHM FUNCTIONS
-def soft_thresh(x, alpha):
-	# x is a pytorch variable, extract weights tensor and convert to a numpy array
-	x_numpy = x.data.cpu().numpy()
-	# Apply soft thresholding function to numpy array 
-	z = np.absolute(x_numpy) - alpha
-	z[z<0] = 0
-	y_numpy = np.multiply(z, np.sign(x_numpy))
-	# Convert resulting numpy array back to a Pytorch Variable and return it
-	y = Variable(torch.from_numpy(y_numpy)).type(torch.FloatTensor)
-	return y
-
 def hard_threshold_k(X, k):
 	Gamma = X.clone()
 	Gamma = Gamma.view(Gamma.data.shape[0], Gamma.data.shape[1]*Gamma.data.shape[2]*Gamma.data.shape[3])
 	m = X.data.shape[1]
 	a,_ = torch.abs(Gamma).data.sort(dim=1,descending=True)
 	T = torch.mm(a[:,k].unsqueeze(1),torch.Tensor(np.ones((1,m))))
-	mask = Variable(torch.Tensor( (np.abs(Gamma.data.numpy())>T.cpu().numpy()) + 0.)).to(dtype=dtype)
+	mask = Variable(torch.Tensor( (np.abs(Gamma.data.numpy())>T.cpu().numpy()) + 0.)).to(device, dtype=dtype)
 	Gamma = Gamma * mask
 	Gamma = Gamma.view(X.data.shape)
 	return Gamma, mask.data.nonzero()
-
-def project_onto_sup(X, sup):
-	X_numpy = X.data.cpu().numpy()
-	X_dims = list(np.shape(X_numpy))
-	X_new = np.zeros((X_dims[0], X_dims[1], X_dims[2], X_dims[3]))
-	for i in range(X_dims[0]):
-		for j in range(len(supp)):
-			X_new[i][sup[j][0]][sup[j][1]][sup[j][2]] = X_numpy[i][sup[j][0]][sup[j][1]][sup[j][2]]
-	X_out = Variable(torch.from_numpy(X_new).type(torch.FloatTensor))
-	return X_out
 
 def sample_filters(numb_atoms, p, k):
 	numb_active_filters = int(np.maximum(np.ceil(p*numb_atoms), k))
@@ -76,6 +55,7 @@ def create_dropout_mask(numb_dp, numb_atoms, numb_r, numb_c, active_filter_inds)
 
 	temp = torch.unsqueeze(temp,0)
 	mask = temp.repeat(numb_dp,1,1,1)
+	mask = mask.to(device, dtype=dtype)
 	return mask
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
