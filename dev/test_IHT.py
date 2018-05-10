@@ -22,10 +22,13 @@ import SupportingFunctions as sf
 
 
 # Provide data filename (both yml and pt file) in which the target model data is stored
-filename = "SL_CSC_IHT"
+int_sequence = 1
+model_filename = "SL_CSC_IHT_" + str(int_sequence)
+training_data_path = 'log_data/' + model_filename '_' + 'training_log.csv'
+activation_data_filename = 'log_data/' + model_filename  + '_' + 'activations'
 
 # Testing parameters
-batch_size=80
+batch_size=100
 
 # Load MNIST
 root = './data'
@@ -41,14 +44,12 @@ test_loader = torch.utils.data.DataLoader(
                 shuffle=False)
 
 # Load in model
-CSC = af.load_SL_CSC_IHT(filename)
+CSC = af.load_SL_CSC_IHT(model_filename)
 CSC.batch_size = batch_size
 filter_dims = list(np.shape(CSC.D_trans.weight.data.cpu().numpy()))
 CSC.mask = torch.ones(batch_size, filter_dims[0], 1,1)
 
 # View training training data
-log_data_file = "1_IHT_training_log"
-training_data_path = os.getcwd() + "/log_data/" + log_data_file + ".csv"
 training_data = np.loadtxt(training_data_path, delimiter=',',skiprows=1)
 plt.figure(1)
 plt.plot(training_data[:,2], training_data[:,5])
@@ -73,9 +74,7 @@ plt.axis('off')
 plt.show()
 
 # Load in histogram data
-npy_file_name = "1_IHT_activations.npy"
-npy_file_path = os.getcwd() + "/log_data/" + npy_file_name
-filter_activations = np.load(npy_file_path)
+filter_activations = np.load(activation_data_filename)
 plt.figure(4)
 plt.hist(filter_activations, bins=50)  # arguments are passed to np.histogram
 plt.title("Histogram of filter activations")
@@ -89,16 +88,16 @@ test_Y = Variable(torch.unsqueeze(test_set.test_data[:batch_size], dim=1)).type(
 test_X, SC_error_percent, numb_SC_iterations, filters_selected = CSC.forward(test_Y)
 test_Y_recon = CSC.D(test_X)
 l2_error_percent = 100*np.sum((test_Y-test_Y_recon).data.cpu().numpy()**2)/ np.sum(test_Y.data.cpu().numpy()**2)
-id1 = 3
-id2 = 12
-id3 = 37
+
+idx = random.sample(range(0, batch_size), 3)
 # Plot original images side by side with reconstructions to get feel for how successful training was
-orig_image1 = test_Y[id1][0].data.cpu().numpy()
-orig_image2 = test_Y[id2][0].data.cpu().numpy()
-orig_image3 = test_Y[id3][0].data.cpu().numpy()
-recon_image1 = test_Y_recon[id1][0].data.cpu().numpy()
-recon_image2 = test_Y_recon[id2][0].data.cpu().numpy()
-recon_image3 = test_Y_recon[id3][0].data.cpu().numpy()
+orig_image1 = test_Y[idx[0]][0].data.cpu().numpy()
+orig_image2 = test_Y[idx[1]][0].data.cpu().numpy()
+orig_image3 = test_Y[idx[2]][0].data.cpu().numpy()
+recon_image1 = test_Y_recon[idx[0]][0].data.cpu().numpy()
+recon_image2 = test_Y_recon[idx[1]][0].data.cpu().numpy()
+recon_image3 = test_Y_recon[idx[2]][0].data.cpu().numpy()
+
 plt.figure(5)
 plt.subplot(3,2,1)
 plt.imshow(orig_image1, cmap='gray')

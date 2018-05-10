@@ -28,7 +28,7 @@ can_use_cuda = use_cuda and torch.cuda.is_available()
 device = torch.device("cuda" if can_use_cuda else "cpu")
 # dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.float
 dtype = torch.float
-using_azure = True
+using_azure = False
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # SUPPORTING ALGORITHM FUNCTIONS
@@ -60,26 +60,34 @@ def create_dropout_mask(numb_dp, numb_atoms, numb_r, numb_c, active_filter_inds)
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # PRIMARY ALGORITHM FUNCTIONS
-def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parameters, learning_rate, momentum, weight_decay, batch_size, p):	
+def train_SL_CSC(CSC, train_loader, test_loader, num_epochs, T_DIC, cost_function, CSC_parameters, learning_rate, momentum, weight_decay, batch_size, p, model_filename):	
 	print("Training SL-CSC. Batch size is: " + repr(batch_size))
 	# Define optimizer
 	optimizer = torch.optim.Adam(CSC_parameters, lr=learning_rate,weight_decay=weight_decay)
-	# Initialise variables needed to plot a random sample of three kernels as they are trained
+	# Initialise variables needed to plot a random sample of three kernels as they are traineds
 	filter_dims = list(np.shape(CSC.D_trans.weight.data.cpu().numpy()))
 	idx = random.sample(range(0, filter_dims[0]), 3)
 	# Prepare logging files and data
-	run_code = 1
 	fieldnames = ['Epoch', 'Batch Number', 'Total Batch Number', 'l2 SC', 'Number SC Iterations', 'l2 End', 'Average Sparsity', 'Cumulative Filters Trained']
 	initialise = True
-	training_log_filename = 'log_data/' + str(run_code) + '_' + str(CSC.forward_type) + '_' + 'training_log.csv'
-	activation_data_filename = 'log_data/' + str(run_code) + '_' + str(CSC.forward_type) + '_' + 'activations'
+	training_log_filename = 'log_data/' + model_filename + '_' + 'training_log.csv'
+	activation_data_filename = 'log_data/' + model_filename  + '_' + 'activations'
 	filter_activations = np.zeros(filter_dims[0])
-	# Variables for plotting error as go along
+	# Variables for plotting training and validation error as going along
 	counter = 1
-	l2_error_list = np.empty(0)	
+	l2_error_list = np.empty(0)
+	test_l2_error_list =  np.empty(0)
+	test_error_xaxis = np.empty(0)
+	validation_run = 5
+	# Variables to control learning rate
+	mva_numb = 10
+	beta = 0.7
+	min_error = 1
+	min_learning_rate = 0.00001
 	# Prepare plots of filters
 	plt.ion()
 	plt.show()
+	# Begin training loop
 	for epoch in range(num_epochs):
 		print("Training epoch " + repr(epoch+1) + " of " + repr(num_epochs))
 		for i, (inputs, labels) in enumerate(train_loader):
@@ -143,15 +151,27 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parame
 						plt.title("Filter "+repr(idx[2]))
 						plt.draw()
 						plt.pause(0.001)
-			# Calculate l2 error
+			# Calculate l2 training error
 			l2_error_percent = 100*np.sum((inputs-CSC.D(X)).data.cpu().numpy()**2)/ np.sum((inputs).data.cpu().numpy()**2)
 			l2_error_list = np.append(l2_error_list, l2_error_percent)
 			print("After " +repr(j+1) + " iterations of SGD, average l2 error over batch: {0:1.2f}".format(l2_error_percent) + "%")
+			# Run validation
+			if counter%validation_run==0:
+				print("Running on validation set")
+				test_inputs, test_labels = next(iter(test_loader))
+				test_inputs = Variable(inputs).to(device)
+				test_labels = Variable(labels).to(device)
+				test_input_dims = list(test_inputs.size())
+				CSC.mask = torch.ones(test_input_dims[0], filter_dims[0], (input_dims[2]-filter_dims[2]+1), (input_dims[3]-filter_dims[3]+1))				
+				test_X, test_SC_error_percent, test_numb_SC_iterations, test_filters_selected = CSC.forward(test_inputs)
+				test_l2_error_percent = 100*np.sum((inputs-CSC.D(test_X)).data.cpu().numpy()**2)/ np.sum((test_inputs).data.cpu().numpy()**2)
+				test_l2_error_list = np.append(test_l2_error_list, test_l2_error_percent)
+				test_error_xaxis = np.append(test_error_xaxis, counter)			
 			# Plot training error overtime
 			if using_azure == False:
 				plt.figure(12)
 				plt.clf()
-				plt.plot(np.arange(counter), l2_error_list)
+				plt.plot(np.arange(counter), l2_error_list, test_error_xaxis, test_l2_error_list)
 				plt.title("Training error over time")
 				plt.ylabel("Percentage error")
 				plt.xlabel("Number of batches")
@@ -161,6 +181,12 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parame
 			CSC.normalise_weights()
 			# Ensure that weights for the reverse and forward operations are consistent	
 			CSC.D_trans.weight.data = CSC.D.weight.data.permute(0,1,3,2)
+			# Adjust learning rate if is learning to slowly
+			if counter > mva_numb:
+				mva_l2_error = np.sum(l2_error_list[-mva_numb:])/mva_numb
+				if np.abs(l2_error_percent - mva_l2_error) < min_error:
+					learning_rate = max(beta*learning_rate, min_learning_rate)
+					print("Training error has not decreased significantly, learning rate reduced to: {0:1.5f}".format(learning_rate))
 			# Reset optimizer
 			optimizer = torch.optim.Adam(CSC_parameters, lr=learning_rate,weight_decay=weight_decay)
 			# Log training data

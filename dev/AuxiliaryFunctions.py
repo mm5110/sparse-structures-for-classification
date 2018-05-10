@@ -72,40 +72,6 @@ def load_SL_CSC_IHT(filename):
     # Return model 
     return CSC
 
-def save_SL_CSC_FISTA(CSC, stride, dp_channels, atom_r, atom_c, numb_atom, filename):
-    torch_save_path = os.getcwd() + "/trained_models/" + filename + ".pt"
-    yml_save_path = os.getcwd() + "/trained_models/" + filename + ".yml"
-    # Save model parameters
-    torch.save(CSC.state_dict(), torch_save_path)
-    # Define dictionary of other variables to store
-    other_CSC_variable_data = {}
-    other_CSC_variable_data["stride"] = stride
-    other_CSC_variable_data["dp_channels"] = dp_channels
-    other_CSC_variable_data["atom_r"] = atom_r
-    other_CSC_variable_data["atom_c"] = atom_c
-    other_CSC_variable_data["numb_atom"] = numb_atom
-    other_CSC_variable_data["tau"] = CSC.tau
-    other_CSC_variable_data["T_SC"] = CSC.T_SC
-    other_CSC_variable_data["T_PM"] = CSC.T_PM
-    # Save down dictionary in a yaml file
-    with open(yml_save_path, 'w') as yaml_file:
-        yaml.dump(other_CSC_variable_data, stream=yaml_file, default_flow_style=False)
-
-def load_SL_CSC_FISTA(filename):
-    torch_load_path = os.getcwd() + "/trained_models/" + filename + ".pt"
-    yml_load_path = os.getcwd() + "/trained_models/" + filename + ".yml"
-
-    # Load in model
-    with open(yml_load_path, 'r') as yaml_file:
-        loaded_CSC_vars = yaml.load(yaml_file)
-
-    # Initialise and return CSC
-    CSC = SL_CSC_FISTA_backtracking(loaded_CSC_vars["stride"], loaded_CSC_vars["dp_channels"], loaded_CSC_vars["atom_r"], loaded_CSC_vars["atom_c"], loaded_CSC_vars["numb_atom"], loaded_CSC_vars["tau"], loaded_CSC_vars["T_SC"], loaded_CSC_vars["T_PM"])
-    # Load in network parameters
-    CSC.load_state_dict(torch.load(torch_load_path))
-    # Return model 
-    return CSC
-
 def log_training_data(log_file, initialise, log_data, fieldnames):
     if initialise == True:
         with open(log_file, 'w') as csvfile:

@@ -27,7 +27,7 @@ can_use_cuda = use_cuda and torch.cuda.is_available()
 device = torch.device("cuda" if can_use_cuda else "cpu")
 print(device)
 dtype = torch.float
-using_azure = True
+using_azure = False
 	
 # MAIN LOOP
 # !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -35,19 +35,20 @@ using_azure = True
 
 
 # Path to save model to
-filename = "SL_CSC_IHT"
+model_filename = "SL_CSC_IHT_" + str(np.random.randint(10^6)) 
 
 # Training hyperparameters
 num_epochs = 10 #100
 batch_size = 500
+validation_batch_size = 100
 T_DIC = 1
 stride = 1
-learning_rate = 0.0007
+learning_rate = 0.001 # 0.0007
 momentum = 0.9 
 weight_decay=0
 k = 50
 # dropout parameter
-p=0.5
+p=0.7
 
 # Local dictionary dimensions
 atom_r = 28
@@ -77,7 +78,7 @@ train_loader = torch.utils.data.DataLoader(
 
 test_loader = torch.utils.data.DataLoader(
                 dataset=test_set,
-                batch_size=batch_size,
+                batch_size=validation_batch_size,
                 shuffle=False)
 
 
@@ -98,7 +99,7 @@ CSC_parameters = [
 cost_function = nn.MSELoss(size_average=True)
 
 # Train Convolutional Sparse Coder
-CSC = sf.train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parameters, learning_rate, momentum, weight_decay, batch_size, p)
+CSC = sf.train_SL_CSC(CSC, train_loader, test_loader, num_epochs, T_DIC, cost_function, CSC_parameters, learning_rate, momentum, weight_decay, batch_size, p, model_filename)
 print("Training seqeunce finished")
 filter_dims = list(np.shape(CSC.D_trans.weight.data.cpu().numpy()))
 
@@ -111,16 +112,14 @@ if using_azure == False:
 	test_X, SC_error_percent, numb_SC_iterations, filters_selected = CSC.forward(test_Y)
 	test_Y_recon = CSC.D(test_X)
 	l2_error_percent = 100*np.sum((test_Y-test_Y_recon).data.cpu().numpy()**2)/ np.sum(test_Y.data.cpu().numpy()**2)
-	id1 = 3
-	id2 = 12
-	id3 = 37
+	idx = random.sample(range(0, CSC.batch_size), 3)
 	# Plot original images side by side with reconstructions to get feel for how successful training was
-	orig_image1 = test_Y[id1][0].data.cpu().numpy()
-	orig_image2 = test_Y[id2][0].data.cpu().numpy()
-	orig_image3 = test_Y[id3][0].data.cpu().numpy()
-	recon_image1 = test_Y_recon[id1][0].data.cpu().numpy()
-	recon_image2 = test_Y_recon[id2][0].data.cpu().numpy()
-	recon_image3 = test_Y_recon[id3][0].data.cpu().numpy()
+	orig_image1 = test_Y[idx[0]][0].data.cpu().numpy()
+	orig_image2 = test_Y[idx[1]][0].data.cpu().numpy()
+	orig_image3 = test_Y[idx[2]][0].data.cpu().numpy()
+	recon_image1 = test_Y_recon[idx[0]][0].data.cpu().numpy()
+	recon_image2 = test_Y_recon[idx[1]][0].data.cpu().numpy()
+	recon_image3 = test_Y_recon[idx[2]][0].data.cpu().numpy()
 	plt.figure(5)
 	plt.subplot(3,2,1)
 	plt.imshow(orig_image1, cmap='gray')
@@ -141,7 +140,7 @@ if using_azure == False:
 
 # Save down model for future use
 print("Saving model")
-af.save_SL_CSC_IHT(CSC ,stride, dp_channels, atom_r, atom_c, numb_atom, filename)
+af.save_SL_CSC_IHT(CSC ,stride, dp_channels, atom_r, atom_c, numb_atom, model_filename)
 print("Finished")
 
 
