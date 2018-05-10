@@ -22,10 +22,10 @@ import SupportingFunctions as sf
 
 
 # Provide data filename (both yml and pt file) in which the target model data is stored
-int_sequence = 1
+int_sequence = 385366
 model_filename = "SL_CSC_IHT_" + str(int_sequence)
-training_data_path = 'log_data/' + model_filename '_' + 'training_log.csv'
-activation_data_filename = 'log_data/' + model_filename  + '_' + 'activations'
+training_data_path = 'log_data/' + model_filename + '_' + 'training_log.csv'
+activation_data_filename = 'log_data/' + model_filename  + '_' + 'activations.npy'
 
 # Testing parameters
 batch_size=100

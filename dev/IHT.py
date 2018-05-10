@@ -33,7 +33,7 @@ using_azure = False
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 class SL_CSC_IHT(nn.Module):
-	def __init__(self, stride=1, dp_channels=1, atom_r=1, atom_c=1, numb_atom=1, k=1):
+	def __init__(self, stride=1, dp_channels=1, atom_r=1, atom_c=1, numb_atom=1, k=1, alpha=0.1):
 		super(SL_CSC_IHT, self).__init__()
 		self.D_trans = nn.Conv2d(dp_channels, numb_atom, (atom_r, atom_c), stride, padding=0, dilation=1, groups=1, bias=False)
 		# self.dropout = nn.Dropout2d(p=0.5, inplace=False)
@@ -44,6 +44,7 @@ class SL_CSC_IHT(nn.Module):
 		self.batch_size = 1
 		self.k=k
 		self.mask = torch.ones(self.batch_size, numb_atom, atom_r, atom_c).to(dtype=dtype)
+		self.alpha = alpha
 
 
 	def forward(self, Y):
@@ -52,15 +53,15 @@ class SL_CSC_IHT(nn.Module):
 		w_dims = list(self.D_trans.weight.data.size())
 		# Initialise X as zero tensor
 		X1 = Variable(torch.zeros(y_dims[0], w_dims[0], (y_dims[2]-w_dims[2]+1),(y_dims[3]-w_dims[3]+1)).to(device, dtype = dtype))
-		alpha = 0.1 #0.005 # Delete after testing
+		alpha = 0.2 #0.005 # Delete after testing
 		X1_error = np.sum((Y).data.cpu().numpy()**2)
 		X2_error = 0
 		i=0
-		max_IHT_iters = 50
+		max_IHT_iters = 30
 		run = True
 		while run == True and i< max_IHT_iters:
 			g = self.dropout(self.D_trans(Y-self.D(self.dropout(X1))))
-			HT_arg = X1 + alpha*g
+			HT_arg = X1 + self.alpha*g
 			X2, filters_selected = sf.hard_threshold_k(HT_arg, self.k)
 			X2_error = np.sum(((Y-self.D(self.dropout(X2))).data.cpu().numpy())**2)
 			if X2_error < X1_error:

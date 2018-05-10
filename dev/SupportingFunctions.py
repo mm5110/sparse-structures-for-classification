@@ -76,14 +76,17 @@ def train_SL_CSC(CSC, train_loader, test_loader, num_epochs, T_DIC, cost_functio
 	# Variables for plotting training and validation error as going along
 	counter = 1
 	l2_error_list = np.empty(0)
+	sc_error_list = np.empty(0)
 	test_l2_error_list =  np.empty(0)
+	test_sc_error_list = np.empty(0)
 	test_error_xaxis = np.empty(0)
 	validation_run = 5
 	# Variables to control learning rate
 	mva_numb = 10
-	beta = 0.7
-	min_error = 1
+	beta = 0.98
+	min_error = 0.5
 	min_learning_rate = 0.00001
+	min_alpha = 0.01
 	# Prepare plots of filters
 	plt.ion()
 	plt.show()
@@ -105,6 +108,12 @@ def train_SL_CSC(CSC, train_loader, test_loader, num_epochs, T_DIC, cost_functio
 				CSC.calc_L(input_dims)
 			X, SC_error_percent, numb_SC_iterations, filters_selected = CSC.forward(inputs)
 			X = X.detach()
+			sc_error_list = np.append(sc_error_list, SC_error_percent)
+			if counter > mva_numb:
+				mva_sc_l2_error = np.sum(sc_error_list[-mva_numb:])/mva_numb
+				if np.abs(SC_error_percent - mva_sc_l2_error) < min_error:
+					CSC.alpha = max(beta*CSC.alpha, min_alpha)
+					print("Training error has not decreased significantly, alpha reduced to: {0:1.2f}".format(CSC.alpha))
 			# Update filter activations
 			for l in range(len(filters_selected)):
 				filter_activations[filters_selected[l][1]] = filter_activations[filters_selected[l][1]] + 1
@@ -171,10 +180,12 @@ def train_SL_CSC(CSC, train_loader, test_loader, num_epochs, T_DIC, cost_functio
 			if using_azure == False:
 				plt.figure(12)
 				plt.clf()
-				plt.plot(np.arange(counter), l2_error_list, test_error_xaxis, test_l2_error_list)
-				plt.title("Training error over time")
-				plt.ylabel("Percentage error")
+				plt.plot(np.arange(counter), l2_error_list, label='Training error')
+				plt.plot(test_error_xaxis, test_l2_error_list, label='Validation error')
+				plt.title("Reconstruction error over time")
+				plt.ylabel("Percentage reconstruction error over batch")
 				plt.xlabel("Number of batches")
+				plt.legend()
 				plt.draw()
 				plt.pause(0.001)
 			# Normalise each atom / kernel
@@ -195,8 +206,6 @@ def train_SL_CSC(CSC, train_loader, test_loader, num_epochs, T_DIC, cost_functio
 			initialise = False
 			# Update counter
 			counter=counter+1
-	# Reset the mask for non training state (i.e. no dropout)
-	CSC.mask = torch.ones(input_dims[0], filter_dims[0], (input_dims[2]-filter_dims[2]+1), (input_dims[3]-filter_dims[3]+1))
 	# Save down the filter activations
 	np.save(activation_data_filename, filter_activations)
 	return CSC

@@ -35,10 +35,11 @@ using_azure = False
 
 
 # Path to save model to
-model_filename = "SL_CSC_IHT_" + str(np.random.randint(10^6)) 
+model_filename = "SL_CSC_IHT_" + str(np.random.randint(1000000))
+print("Running training of model " + model_filename) 
 
 # Training hyperparameters
-num_epochs = 10 #100
+num_epochs = 2 #100
 batch_size = 500
 validation_batch_size = 100
 T_DIC = 1
@@ -47,6 +48,7 @@ learning_rate = 0.001 # 0.0007
 momentum = 0.9 
 weight_decay=0
 k = 50
+alpha = 0.25
 # dropout parameter
 p=0.7
 
@@ -88,7 +90,7 @@ print(train_set.train_data.size())               # (60000, 28, 28)
 print(train_set.train_labels.size())               # (60000)
 
 # Intitilise Convolutional Sparse Coder CSC
-CSC = SL_CSC_IHT(stride, dp_channels, atom_r, atom_c, numb_atom, k).to(device)
+CSC = SL_CSC_IHT(stride, dp_channels, atom_r, atom_c, numb_atom, k, alpha).to(device)
 
 # Define optimisation parameters
 CSC_parameters = [
