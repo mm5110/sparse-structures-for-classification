@@ -26,7 +26,7 @@ use_cuda = True
 can_use_cuda = use_cuda and torch.cuda.is_available()
 device = torch.device("cuda" if can_use_cuda else "cpu")
 print(device)
-dtype = torch.float #torch.cuda.float if torch.cuda.is_available() else torch.float
+dtype = torch.float
 using_azure = True
 	
 # MAIN LOOP
@@ -38,8 +38,8 @@ using_azure = True
 filename = "SL_CSC_IHT"
 
 # Training hyperparameters
-num_epochs = 100 #100
-batch_size = 512
+num_epochs = 10 #100
+batch_size = 500
 T_DIC = 1
 stride = 1
 learning_rate = 0.0007

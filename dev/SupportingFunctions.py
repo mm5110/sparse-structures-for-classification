@@ -118,7 +118,7 @@ def train_SL_CSC(CSC, train_loader, num_epochs, T_DIC, cost_function, CSC_parame
 				# Zero the gradient
 				optimizer.zero_grad()
 				# Calculate estimate of reconstructed Y
-				inputs_recon = CSC.reverse(X)
+				inputs_recon = CSC.D(X)
 				# Calculate loss according to the defined cost function between the true Y and reconstructed Y
 				loss = cost_function(inputs_recon, inputs)
 				# Calculate the gradient of the cost function wrt to each parameters
