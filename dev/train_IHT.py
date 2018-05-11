@@ -40,17 +40,17 @@ print("Running training of model " + model_filename)
 
 # Training hyperparameters
 num_epochs = 2 #100
-batch_size = 500
+batch_size = 1000 #500
 validation_batch_size = 100
 T_DIC = 1
 stride = 1
 learning_rate = 0.001 # 0.0007
 momentum = 0.9 
 weight_decay=0
-k = 50
+k = 25 #50
 alpha = 0.25
 # dropout parameter
-p=0.7
+p=0.4
 
 # Local dictionary dimensions
 atom_r = 28

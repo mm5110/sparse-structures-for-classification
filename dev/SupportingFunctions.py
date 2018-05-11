@@ -66,7 +66,7 @@ def train_SL_CSC(CSC, train_loader, test_loader, num_epochs, T_DIC, cost_functio
 	optimizer = torch.optim.Adam(CSC_parameters, lr=learning_rate,weight_decay=weight_decay)
 	# Initialise variables needed to plot a random sample of three kernels as they are traineds
 	filter_dims = list(np.shape(CSC.D_trans.weight.data.cpu().numpy()))
-	idx = random.sample(range(0, filter_dims[0]), 3)
+	# idx = random.sample(range(0, filter_dims[0]), 3)
 	# Prepare logging files and data
 	fieldnames = ['Epoch', 'Batch Number', 'Total Batch Number', 'l2 SC', 'Number SC Iterations', 'l2 End', 'Average Sparsity', 'Cumulative Filters Trained']
 	initialise = True
@@ -146,18 +146,25 @@ def train_SL_CSC(CSC, train_loader, test_loader, num_epochs, T_DIC, cost_functio
 				if j==0 or (j+1)%5 == 0:
 					print("Average loss per data point at iteration {0:1.0f}".format(j+1) + " of SGD: {0:1.4f}".format(np.asscalar(loss.data.cpu().numpy())))
 					if using_azure == False:
-						plt.figure(11)
-						plt.clf()
-						plt.subplot(1,3,1)
-						plt.imshow((CSC.D.weight[idx[0]][0].data.cpu().numpy()), cmap='gray')
-						plt.title("Filter "+repr(idx[0]))
-						plt.subplot(1,3,2)
-						plt.imshow((CSC.D.weight[idx[1]][0].data.cpu().numpy()), cmap='gray', )
-						plt.title("Filter "+repr(idx[1]))
-						plt.xlabel("Epoch Number: " + repr(epoch)+ ", Batch number: " + repr(i+1) + ", Average loss: {0:1.4f}".format(np.asscalar(loss.data.cpu().numpy())))
-						plt.subplot(1,3,3)
-						plt.imshow((CSC.D.weight[idx[2]][0].data.cpu().numpy()), cmap='gray')
-						plt.title("Filter "+repr(idx[2]))
+						# plt.figure(11)
+						# plt.clf()
+						# plt.subplot(1,3,1)
+						# plt.imshow((CSC.D.weight[idx[0]][0].data.cpu().numpy()), cmap='gray')
+						# plt.title("Filter "+repr(idx[0]))
+						# plt.subplot(1,3,2)
+						# plt.imshow((CSC.D.weight[idx[1]][0].data.cpu().numpy()), cmap='gray', )
+						# plt.title("Filter "+repr(idx[1]))
+						# plt.xlabel("Epoch Number: " + repr(epoch)+ ", Batch number: " + repr(i+1) + ", Average loss: {0:1.4f}".format(np.asscalar(loss.data.cpu().numpy())))
+						# plt.subplot(1,3,3)
+						# plt.imshow((CSC.D.weight[idx[2]][0].data.cpu().numpy()), cmap='gray')
+						# plt.title("Filter "+repr(idx[2]))
+						# plt.draw()
+						# plt.pause(0.001)
+						D = CSC.D.weight.data.cpu().numpy()
+						M = af.showFilters(D,20,20)
+						plt.figure(11, figsize=(10,10))
+						plt.imshow(rescale(M, scale=4, mode='constant'),cmap='gray')
+						plt.axis('off')
 						plt.draw()
 						plt.pause(0.001)
 			# Calculate l2 training error
