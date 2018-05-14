@@ -32,6 +32,18 @@ using_azure = False
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # SUPPORTING ALGORITHM FUNCTIONS
+def hard_threshold_joint_k(X, k):
+	Gamma = X.clone()
+	Gamma = Gamma.view(Gamma.data.shape[0], Gamma.data.shape[1]*Gamma.data.shape[2]*Gamma.data.shape[3])
+	filter_activation_l2 = np.sum(Gamma.data.numpy()**2, axis=0)
+	joint_supp =  np.argsort(filter_activation_l2)[-k:]
+	mask = torch.zeros(Gamma.data.shape[0], Gamma.data.shape[1]).to(device, dtype=dtype)
+	for i in range(k):
+		mask[:,joint_supp[i]] = torch.ones(Gamma.data.shape[0])
+	Gamma = Gamma * mask
+	Gamma = Gamma.view(X.data.shape)
+	return Gamma, joint_supp
+
 def hard_threshold_k(X, k):
 	Gamma = X.clone()
 	Gamma = Gamma.view(Gamma.data.shape[0], Gamma.data.shape[1]*Gamma.data.shape[2]*Gamma.data.shape[3])
@@ -52,7 +64,6 @@ def create_dropout_mask(numb_dp, numb_atoms, numb_r, numb_c, active_filter_inds)
 	temp = torch.zeros(numb_atoms, numb_r, numb_c).to(dtype=dtype)
 	for i in active_filter_inds:
 		temp[i] = torch.ones(numb_r, numb_c)
-
 	temp = torch.unsqueeze(temp,0)
 	mask = temp.repeat(numb_dp,1,1,1)
 	mask = mask.to(device, dtype=dtype)
@@ -100,13 +111,17 @@ def train_SL_CSC(CSC, train_loader, test_loader, num_epochs, T_DIC, cost_functio
 			# Calculate and update step size for sparse coding step
 			input_dims = list(inputs.size())
 			CSC.batch_size = input_dims[0]
-			# Generate dropout filter
-			active_filter_inds = sample_filters(filter_dims[0], p, CSC.k)
-			CSC.mask = create_dropout_mask(input_dims[0], filter_dims[0], (input_dims[2]-filter_dims[2]+1), (input_dims[3]-filter_dims[3]+1), active_filter_inds)
 			# Fix dictionary and calculate sparse code
-			if CSC.forward_type == 'FISTA_fixed_step':
-				CSC.calc_L(input_dims)
-			X, SC_error_percent, numb_SC_iterations, filters_selected = CSC.forward(inputs)
+			if CSC.forward_type == 'IHT_Joint':
+				print("Forward type IHT_Joint")
+				X, inputs, SC_error_percent, numb_SC_iterations, joint_supp, filters_selected = CSC.forward_training(inputs, labels, p)
+				inputs.detach()
+			else:
+				print("Forward type IHT")
+				# Generate dropout filter
+				active_filter_inds = sample_filters(filter_dims[0], p, CSC.k)
+				CSC.mask = create_dropout_mask(input_dims[0], filter_dims[0], (input_dims[2]-filter_dims[2]+1), (input_dims[3]-filter_dims[3]+1), active_filter_inds)
+				X, SC_error_percent, numb_SC_iterations, filters_selected = CSC.forward(inputs)
 			X = X.detach()
 			sc_error_list = np.append(sc_error_list, SC_error_percent)
 			if counter > mva_numb:
@@ -115,8 +130,12 @@ def train_SL_CSC(CSC, train_loader, test_loader, num_epochs, T_DIC, cost_functio
 					CSC.alpha = max(beta*CSC.alpha, min_alpha)
 					print("Training error has not decreased significantly, alpha reduced to: {0:1.2f}".format(CSC.alpha))
 			# Update filter activations
-			for l in range(len(filters_selected)):
-				filter_activations[filters_selected[l][1]] = filter_activations[filters_selected[l][1]] + 1
+			if CSC.forward_type == 'IHT_Joint': 
+				for l in range(len(filters_selected)):
+					filter_activations[int(filters_selected[l])] = filter_activations[int(filters_selected[l])] + 1
+			else:
+				for l in range(len(filters_selected)):
+					filter_activations[filters_selected[l][1]] = filter_activations[filters_selected[l][1]] + 1
 			# Plot historgram of filter activations
 			if using_azure == False:
 				plt.figure(10)
@@ -146,20 +165,6 @@ def train_SL_CSC(CSC, train_loader, test_loader, num_epochs, T_DIC, cost_functio
 				if j==0 or (j+1)%5 == 0:
 					print("Average loss per data point at iteration {0:1.0f}".format(j+1) + " of SGD: {0:1.4f}".format(np.asscalar(loss.data.cpu().numpy())))
 					if using_azure == False:
-						# plt.figure(11)
-						# plt.clf()
-						# plt.subplot(1,3,1)
-						# plt.imshow((CSC.D.weight[idx[0]][0].data.cpu().numpy()), cmap='gray')
-						# plt.title("Filter "+repr(idx[0]))
-						# plt.subplot(1,3,2)
-						# plt.imshow((CSC.D.weight[idx[1]][0].data.cpu().numpy()), cmap='gray', )
-						# plt.title("Filter "+repr(idx[1]))
-						# plt.xlabel("Epoch Number: " + repr(epoch)+ ", Batch number: " + repr(i+1) + ", Average loss: {0:1.4f}".format(np.asscalar(loss.data.cpu().numpy())))
-						# plt.subplot(1,3,3)
-						# plt.imshow((CSC.D.weight[idx[2]][0].data.cpu().numpy()), cmap='gray')
-						# plt.title("Filter "+repr(idx[2]))
-						# plt.draw()
-						# plt.pause(0.001)
 						D = CSC.D.weight.data.cpu().numpy()
 						M = af.showFilters(D,20,20)
 						plt.figure(11, figsize=(10,10))
@@ -178,7 +183,7 @@ def train_SL_CSC(CSC, train_loader, test_loader, num_epochs, T_DIC, cost_functio
 				test_inputs = Variable(inputs).to(device)
 				test_labels = Variable(labels).to(device)
 				test_input_dims = list(test_inputs.size())
-				CSC.mask = torch.ones(test_input_dims[0], filter_dims[0], (input_dims[2]-filter_dims[2]+1), (input_dims[3]-filter_dims[3]+1))				
+				CSC.mask = torch.ones(test_input_dims[0], filter_dims[0], (input_dims[2]-filter_dims[2]+1), (input_dims[3]-filter_dims[3]+1))			
 				test_X, test_SC_error_percent, test_numb_SC_iterations, test_filters_selected = CSC.forward(test_inputs)
 				test_l2_error_percent = 100*np.sum((inputs-CSC.D(test_X)).data.cpu().numpy()**2)/ np.sum((test_inputs).data.cpu().numpy()**2)
 				test_l2_error_list = np.append(test_l2_error_list, test_l2_error_percent)

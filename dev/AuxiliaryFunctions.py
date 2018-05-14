@@ -37,7 +37,7 @@ def showFilters(W,ncol,nrows):
             im = im/np.max(im)
             Mosaic[ i*p : (i+1)*p , j*p : (j+1)*p ] = np.pad(im.reshape(W.shape[3],W.shape[3]),(1,1),mode='constant').reshape(p,p)
             indx += 1
-            
+           
     return Mosaic
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

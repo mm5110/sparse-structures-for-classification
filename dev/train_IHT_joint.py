@@ -18,6 +18,7 @@ from skimage import data, color
 from skimage.transform import rescale, resize, downscale_local_mean
 
 from IHT import SL_CSC_IHT
+from IHT import SL_CSC_IHT_Joint
 import AuxiliaryFunctions as af
 import SupportingFunctions as sf 
 
@@ -35,7 +36,7 @@ using_azure = False
 
 
 # Path to save model to
-model_filename = "SL_CSC_IHT_" + str(np.random.randint(1000000))
+model_filename = "SL_CSC_IHT_joint_" + str(np.random.randint(1000000))
 print("Running training of model " + model_filename) 
 
 # Training hyperparameters
@@ -47,10 +48,10 @@ stride = 1
 learning_rate = 0.001 # 0.0007
 momentum = 0.9 
 weight_decay=0
-k = 25 #50
+k = 40 #50
 alpha = 0.25
 # dropout parameter
-p=0.4 #0.5
+p=0.08 #0.5
 
 # Local dictionary dimensions
 atom_r = 28
@@ -89,8 +90,11 @@ train_set_dims = list(train_set.train_data.size())
 print(train_set.train_data.size())               # (60000, 28, 28)
 print(train_set.train_labels.size())               # (60000)
 
+# print(train_set.train_data[6])
+# print(train_set.train_labels[6].item())
+
 # Intitilise Convolutional Sparse Coder CSC
-CSC = SL_CSC_IHT(stride, dp_channels, atom_r, atom_c, numb_atom, k, alpha).to(device)
+CSC = SL_CSC_IHT_Joint(stride, dp_channels, atom_r, atom_c, numb_atom, k, alpha).to(device)
 
 # Define optimisation parameters
 CSC_parameters = [
@@ -100,7 +104,7 @@ CSC_parameters = [
 # Define training settings/ options
 cost_function = nn.MSELoss(size_average=True)
 
-# Train Convolutional Sparse Coder
+# # Train Convolutional Sparse Coder
 CSC = sf.train_SL_CSC(CSC, train_loader, test_loader, num_epochs, T_DIC, cost_function, CSC_parameters, learning_rate, momentum, weight_decay, batch_size, p, model_filename)
 print("Training seqeunce finished")
 filter_dims = list(np.shape(CSC.D_trans.weight.data.cpu().numpy()))
