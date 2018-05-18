@@ -74,7 +74,7 @@ def create_dropout_mask(numb_dp, numb_atoms, numb_r, numb_c, active_filter_inds)
 def train_SL_CSC(CSC, train_loader, test_loader, num_epochs, T_DIC, cost_function, CSC_parameters, learning_rate, momentum, weight_decay, batch_size, p, model_filename):	
 	print("Training SL-CSC. Batch size is: " + repr(batch_size))
 	# Define optimizer
-	optimizer = torch.optim.Adam(CSC_parameters, lr=learning_rate,weight_decay=weight_decay)
+	optimizer = torch.optim.Adam(CSC_parameters, lr=learning_rate, weight_decay=weight_decay)
 	# Initialise variables needed to plot a random sample of three kernels as they are traineds
 	filter_dims = list(np.shape(CSC.D_trans.weight.data.cpu().numpy()))
 	# idx = random.sample(range(0, filter_dims[0]), 3)
@@ -91,7 +91,7 @@ def train_SL_CSC(CSC, train_loader, test_loader, num_epochs, T_DIC, cost_functio
 	test_l2_error_list =  np.empty(0)
 	test_sc_error_list = np.empty(0)
 	test_error_xaxis = np.empty(0)
-	validation_run = 5
+	validation_run = 10
 	# Variables to control learning rate
 	mva_numb = 10
 	beta = 0.98
@@ -107,6 +107,9 @@ def train_SL_CSC(CSC, train_loader, test_loader, num_epochs, T_DIC, cost_functio
 		for i, (inputs, labels) in enumerate(train_loader):
 			print("Batch number " + repr(i+1))
 			inputs = Variable(inputs).to(device)
+			# Remove the average of the batch
+			inputs_mean = torch.mean(inputs.data, dim=0, keepdim=True)
+			inputs = inputs - inputs_mean
 			labels = Variable(labels).to(device)
 			# Calculate and update step size for sparse coding step
 			input_dims = list(inputs.size())
@@ -162,16 +165,16 @@ def train_SL_CSC(CSC, train_loader, test_loader, num_epochs, T_DIC, cost_functio
 				# Update each parameter according to the optimizer update rule (single step)
 				optimizer.step()
 				# At the end of each batch plot a random sample of kernels to observe progress
-				if j==0 or (j+1)%5 == 0:
+				if j==0 or (j+1)%10 == 0:
 					print("Average loss per data point at iteration {0:1.0f}".format(j+1) + " of SGD: {0:1.4f}".format(np.asscalar(loss.data.cpu().numpy())))
-					if using_azure == False:
-						D = CSC.D.weight.data.cpu().numpy()
-						M = af.showFilters(D,20,20)
-						plt.figure(11, figsize=(10,10))
-						plt.imshow(rescale(M, scale=4, mode='constant'),cmap='gray')
-						plt.axis('off')
-						plt.draw()
-						plt.pause(0.001)
+					# if using_azure == False:
+					# 	D = CSC.D.weight.data.cpu().numpy()
+					# 	M = af.showFilters(D,10,10)
+					# 	plt.figure(11, figsize=(10,10))
+					# 	plt.imshow(rescale(M, scale=4, mode='constant'),cmap='gray')
+					# 	plt.axis('off')
+					# 	plt.draw()
+					# 	plt.pause(0.001)
 			# Calculate l2 training error
 			l2_error_percent = 100*np.sum((inputs-CSC.D(X)).data.cpu().numpy()**2)/ np.sum((inputs).data.cpu().numpy()**2)
 			l2_error_list = np.append(l2_error_list, l2_error_percent)

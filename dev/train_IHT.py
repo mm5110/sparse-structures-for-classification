@@ -40,22 +40,22 @@ print("Running training of model " + model_filename)
 
 # Training hyperparameters
 num_epochs = 2 #100
-batch_size = 500 #500
+batch_size = 1000 #500
 validation_batch_size = 100
 T_DIC = 1
 stride = 1
-learning_rate = 0.001 # 0.0007
+learning_rate = 0.005 #0.001 # 0.0007
 momentum = 0.9 
 weight_decay=0
-k = 25 #50
-alpha = 0.25
+k = 50 #50
+alpha = 0.2 #0.25
 # dropout parameter
-p=0.4 #0.5
+p=0.5 #0.5
 
 # Local dictionary dimensions
 atom_r = 28
 atom_c = 28
-numb_atom = 500
+numb_atom = 1000
 dp_channels = 1 
 
 # Load MNIST
@@ -64,9 +64,35 @@ download = True  # download MNIST dataset or not
 
 # Access MNIST dataset and define processing transforms to proces
 trans = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.1307,), (0.3081,))])
-# trans = transforms.Compose([transforms.ToTensor()])
+trans = transforms.Compose([transforms.ToTensor()])
+
 train_set = dsets.MNIST(root=root, train=True, transform=trans, download=download)
 test_set = dsets.MNIST(root=root, train=False, transform=trans)
+
+# DELETE
+# Conversion seems to completely screw everything over...
+# train_set.train_data = train_set.train_data.type(torch.FloatTensor)
+# test_set.test_data = test_set.test_data.type(torch.FloatTensor)
+
+# # Calculate the mean image of both the train set and the test set
+# train_mean = torch.mean(train_set.train_data, dim=0, keepdim=True)
+# train_mean_img = train_mean[0].data.numpy()
+# # train_set.train_data = train_set.train_data - train_mean
+
+# test_mean = torch.mean(test_set.test_data, dim=0, keepdim=True)
+# test_mean_img = train_mean[0].data.numpy()
+# test_set.test_data = test_set.test_data - test_mean
+
+# print(list(train_mean.size()))
+# plt.figure(20)
+# plt.imshow(train_mean_img, cmap='gray')
+# plt.show(block=True)
+
+# plt.figure(20)
+# plt.imshow(train_set.train_data[0], cmap='gray')
+# plt.show(block=True)
+# DELETE
+
 
 idx = list(range(60000))
 train_sampler = SubsetRandomSampler(idx)

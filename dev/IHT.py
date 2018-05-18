@@ -58,7 +58,7 @@ class SL_CSC_IHT(nn.Module):
 		X1_error = np.sum((Y).data.cpu().numpy()**2)
 		X2_error = 0
 		i=0
-		max_IHT_iters = 30
+		max_IHT_iters = 20
 		run = True
 		while run == True and i< max_IHT_iters:
 			g = self.dropout(self.D_trans(Y-self.D(self.dropout(X1))))
@@ -117,7 +117,7 @@ class SL_CSC_IHT_Joint(nn.Module):
 		X1_error = np.sum((Y).data.cpu().numpy()**2)
 		X2_error = 0
 		i=0
-		max_IHT_iters = 30
+		max_IHT_iters = 20
 		run = True
 		while run == True and i< max_IHT_iters:
 			g = self.dropout(self.D_trans(Y-self.D(self.dropout(X1))))
@@ -186,7 +186,7 @@ class SL_CSC_IHT_Joint(nn.Module):
 		print("Error breakdown by class label:")
 		for key, item in error_percent.items():
 			print("Class: {}".format(key) + ", number of iterations: {}".format(numb_runs[key]) + ", error percentage: {0:1.2f}%".format(item))
-		return X_tensor, Z_tensor, total_error_percent, av_number_runs, joint_supp, filters_selected
+		return X_tensor, Z_tensor, total_error_percent, av_number_runs, joint_supp, filters_selected, X
 				
 
 	def IHT_Joint(self, Y, max_IHT_iters, alpha):
