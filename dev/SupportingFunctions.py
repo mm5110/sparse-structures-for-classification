@@ -117,7 +117,7 @@ def train_SL_CSC(CSC, train_loader, test_loader, num_epochs, T_DIC, cost_functio
 			# Fix dictionary and calculate sparse code
 			if CSC.forward_type == 'IHT_Joint':
 				print("Forward type IHT_Joint")
-				X, inputs, SC_error_percent, numb_SC_iterations, joint_supp, filters_selected = CSC.forward_training(inputs, labels, p)
+				X, inputs, SC_error_percent, numb_SC_iterations, joint_supp, filters_selected, X_dict = CSC.forward_training(inputs, labels, p)
 				inputs.detach()
 			else:
 				print("Forward type IHT")
