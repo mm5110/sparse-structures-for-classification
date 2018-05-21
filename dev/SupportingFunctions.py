@@ -104,6 +104,8 @@ def train_SL_CSC(CSC, train_loader, test_loader, num_epochs, T_DIC, cost_functio
 	# Begin training loop
 	for epoch in range(num_epochs):
 		print("Training epoch " + repr(epoch+1) + " of " + repr(num_epochs))
+		if epoch > 1:
+			p=1
 		for i, (inputs, labels) in enumerate(train_loader):
 			print("Batch number " + repr(i+1))
 			inputs = Variable(inputs).to(device)
