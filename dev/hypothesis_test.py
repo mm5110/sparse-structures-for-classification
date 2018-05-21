@@ -87,15 +87,17 @@ filter_dims_J = list(np.shape(CSC_J.D_trans.weight.data.cpu().numpy()))
 CSC_J.batch_size = rep_batch_size
 CSC.batch_size = rep_batch_size
 # Ensure that there is no dropout taking place
-CSC.mask = (torch.ones(rep_batch_size, filter_dims[0], 1, 1)).to(device, dtype=dtype)
-CSC_J.mask = (torch.ones(rep_batch_size, filter_dims_J[0], 1, 1)).to(device, dtype=dtype)
+CSC.mask = (torch.ones(rep_batch_size, filter_dims[0], 1, 1))
+CSC.mask = CSC.mask.to(device, dtype=dtype)
+CSC_J.mask = (torch.ones(rep_batch_size, filter_dims_J[0], 1, 1))
+CSC_J.mask = CSC_J.mask.to(device, dtype=dtype)
 
 # Load data to calculate the representation for each class
 train_inputs, train_labels = next(iter(train_loader))
 train_inputs_mean = torch.mean(train_inputs.data, dim=0, keepdim=True)
 train_inputs = train_inputs - train_inputs_mean
-train_inputs = Variable(train_inputs).to(device)
-train_labels = Variable(train_labels).to(device)
+train_inputs = Variable(train_inputs).to(device, dtype=dtype)
+train_labels = Variable(train_labels).to(device, dtype=dtype)
 train_input_dims = list(train_inputs.size())
 
 # GENERATE LOW DIM SUBSPACE FOR EACH CLASS BY EACH METHOD
@@ -166,8 +168,8 @@ for key, tensor_list in Y_pca_cls_list.items():
 test_inputs, test_labels = next(iter(test_loader))
 test_inputs_mean = torch.mean(test_inputs.data, dim=0, keepdim=True)
 test_inputs = test_inputs - test_inputs_mean
-test_inputs = Variable(test_inputs).to(device)
-test_labels = Variable(test_labels).to(device)
+test_inputs = Variable(test_inputs).to(device, dtype=dtype)
+test_labels = Variable(test_labels).to(device, dtype=dtype)
 test_input_dims = list(test_inputs.size())
 
 # Process test data to find representation, we will measure how close this representation lies to the 
