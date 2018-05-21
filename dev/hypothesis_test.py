@@ -87,8 +87,8 @@ filter_dims_J = list(np.shape(CSC_J.D_trans.weight.data.cpu().numpy()))
 CSC_J.batch_size = rep_batch_size
 CSC.batch_size = rep_batch_size
 # Ensure that there is no dropout taking place
-CSC.mask = torch.ones(rep_batch_size, filter_dims[0], 1, 1)
-CSC_J.mask = torch.ones(rep_batch_size, filter_dims_J[0], 1, 1)
+CSC.mask = (torch.ones(rep_batch_size, filter_dims[0], 1, 1)).to(device, dtype=dtype)
+CSC_J.mask = (torch.ones(rep_batch_size, filter_dims_J[0], 1, 1)).to(device, dtype=dtype)
 
 # Load data to calculate the representation for each class
 train_inputs, train_labels = next(iter(train_loader))
@@ -174,8 +174,8 @@ test_input_dims = list(test_inputs.size())
 CSC_J.batch_size = test_batch_size
 CSC.batch_size = test_batch_size
 # Ensure that there is no dropout taking place
-CSC.mask = torch.ones(test_batch_size, filter_dims[0], 1, 1)
-CSC_J.mask = torch.ones(test_batch_size, filter_dims_J[0], 1, 1)
+CSC.mask = (torch.ones(test_batch_size, filter_dims[0], 1, 1)).to(device, dtype=dtype)
+CSC_J.mask = (torch.ones(test_batch_size, filter_dims_J[0], 1, 1)).to(device, dtype=dtype)
 
 
 # ANALYSE CLASSIFICATION
