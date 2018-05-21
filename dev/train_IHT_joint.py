@@ -40,7 +40,7 @@ model_filename = "SL_CSC_IHT_joint_" + str(np.random.randint(1000000))
 print("Running training of model " + model_filename) 
 
 # Training hyperparameters
-num_epochs = 2 #100
+num_epochs = 20 #100
 batch_size = 1000 #500
 validation_batch_size = 100
 T_DIC = 1
