@@ -35,7 +35,7 @@ using_azure = False
 def hard_threshold_joint_k(X, k):
 	Gamma = X.clone()
 	Gamma = Gamma.view(Gamma.data.shape[0], Gamma.data.shape[1]*Gamma.data.shape[2]*Gamma.data.shape[3])
-	filter_activation_l2 = np.sum(Gamma.data.numpy()**2, axis=0)
+	filter_activation_l2 = np.sum(Gamma.data.cpu().numpy()**2, axis=0)
 	joint_supp =  np.argsort(filter_activation_l2)[-k:]
 	mask = torch.zeros(Gamma.data.shape[0], Gamma.data.shape[1]).to(device, dtype=dtype)
 	for i in range(k):
