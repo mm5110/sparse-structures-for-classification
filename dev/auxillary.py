@@ -35,7 +35,7 @@ def save_model(model, filename):
 	other_CSC_variable_data = {}
 	other_CSC_variable_data["K"] = model.K
 	other_CSC_variable_data["forward_type"] = model.forward_type
-	other_CSC_variable_data["m"] = model.forward_type
+	other_CSC_variable_data["m"] = model.m
 	# Save down dictionary in a yaml file
 	with open(yml_save_path, 'w') as yaml_file:
 	    yaml.dump(other_CSC_variable_data, stream=yaml_file, default_flow_style=False)
@@ -48,7 +48,7 @@ def load_model(filename):
 	with open(yml_load_path, 'r') as yaml_file:
 	    loaded_model_vars = yaml.load(yaml_file)
 	# Initialise and return CSC
-	model = mds.DictLearnt_IHT(loaded_model_vars["m"], loaded_model_vars["K"])
+	model = mds.DictLearnt_IHT(int(loaded_model_vars["m"]), int(loaded_model_vars["K"]))
 	# Load in model parameters
 	temp = torch.load(torch_load_path)
 	print(temp)

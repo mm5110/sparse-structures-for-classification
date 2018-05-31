@@ -10,6 +10,7 @@ from matplotlib import cm
 import numpy as np
 import time
 import pdb
+import random
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
@@ -28,13 +29,14 @@ class DictLearnt_IHT(nn.Module):
         self.K = K
         self.forward_type = "IHT"
         self.m = m
+        self.mask = 1
         
     def forward(self, Y, K):       
         # normalizing Dict
         self.W.requires_grad_(False)
         self.W.data = NormDict(self.W.data)       
         # Sparse Coding
-        Gamma, residual, errIHT = IHT(Y,self.W,K)       
+        Gamma, residual, errIHT = IHT(Y,self.W, self.mask, K)       
         # Reconstructing
         self.W.requires_grad_(True)
         X = torch.mm(Gamma,self.W.transpose(1,0))       
@@ -45,7 +47,7 @@ class DictLearnt_IHT(nn.Module):
 
         
 #--------------------------------------------------------------
-#         Auxiliary Functions
+#         Supporting Functions
 #--------------------------------------------------------------
 
 def hard_threshold_k(X, k):
@@ -61,27 +63,45 @@ def hard_threshold_k(X, k):
 #--------------------------------------------------------------
 
 
-def IHT(Y,W,K):
-    
+def IHT(Y,W,mask,K):
     c = PowerMethod(W)
     # print(c)
     eta = 2/c
-    Gamma = hard_threshold_k(torch.mm(Y,eta*W),K)
+    ht_arg = dropout(torch.mm(Y,eta*W), mask)
+    Gamma = hard_threshold_k(ht_arg, K)
     # plt.spy(Gamma); plt.show()
-    # pdb.set_trace()
-    
+    # pdb.set_trace()   
     residual = torch.mm(Gamma, W.transpose(1,0)) - Y
-    IHT_ITER = 50
-    
+    IHT_ITER = 50  
     norms = np.zeros((IHT_ITER,))
-
     for i in range(IHT_ITER):
-        Gamma = hard_threshold_k(Gamma - eta * torch.mm(residual, W), K)
+        ht_arg = dropout((Gamma - eta * torch.mm(residual, W)), mask)
+        Gamma = hard_threshold_k(ht_arg, K)
         residual = torch.mm(Gamma, W.transpose(1,0)) - Y
-        norms[i] = np.linalg.norm(residual.cpu().numpy(),'fro')/ np.linalg.norm(Y.cpu().numpy(),'fro')
-    
+        norms[i] = np.linalg.norm(residual.cpu().numpy(),'fro')/ np.linalg.norm(Y.cpu().numpy(),'fro')   
     return Gamma, residual, norms
 
+
+# def IHT(Y,W,K):
+    
+#     c = PowerMethod(W)
+#     # print(c)
+#     eta = 2/c
+#     Gamma = hard_threshold_k(torch.mm(Y,eta*W),K)
+#     # plt.spy(Gamma); plt.show()
+#     # pdb.set_trace()
+    
+#     residual = torch.mm(Gamma, W.transpose(1,0)) - Y
+#     IHT_ITER = 50
+    
+#     norms = np.zeros((IHT_ITER,))
+
+#     for i in range(IHT_ITER):
+#         Gamma = hard_threshold_k(Gamma - eta * torch.mm(residual, W), K)
+#         residual = torch.mm(Gamma, W.transpose(1,0)) - Y
+#         norms[i] = np.linalg.norm(residual.cpu().numpy(),'fro')/ np.linalg.norm(Y.cpu().numpy(),'fro')
+    
+#     return Gamma, residual, norms
 
 #--------------------------------------------------------------
 
@@ -100,11 +120,11 @@ def PowerMethod(W):
         Dgamma = torch.mm(X,W.transpose(1,0))
         X = torch.mm(Dgamma,W)
         nm = torch.norm(X,p=2)
-        X = X/nm
-    
+        X = X/nm   
     return nm
 
 #--------------------------------------------------------------
+
 def sample_filters(numb_atoms, p, k):
     numb_active_filters = int(np.maximum(np.ceil(p*numb_atoms), k))
     active_filter_inds = random.sample(range(0, numb_atoms), numb_active_filters)
@@ -112,18 +132,17 @@ def sample_filters(numb_atoms, p, k):
 
 #--------------------------------------------------------------
 
-def create_dropout_mask(numb_dp, numb_atoms, numb_r, numb_c, active_filter_inds):
-    temp = torch.zeros(numb_atoms, numb_r, numb_c).to(dtype=dtype)
+def create_dropout_mask(batch_size, m, active_filter_inds):
+    mask = torch.zeros(batch_size, m)
     for i in active_filter_inds:
-        temp[i] = torch.ones(numb_r, numb_c)
-    temp = torch.unsqueeze(temp,0)
-    mask = temp.repeat(numb_dp,1,1,1)
-    mask = mask.to(device, dtype=dtype)
+        mask[:,i] = torch.ones(batch_size)
     return mask
 
 #--------------------------------------------------------------
 
-
+def dropout(X, mask):
+    X_dropout = X*mask
+    return X_dropout
 
 #--------------------------------------------------------------
 
