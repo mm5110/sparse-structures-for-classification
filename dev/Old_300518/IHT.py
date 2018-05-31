@@ -23,7 +23,7 @@ import SupportingFunctions as sf
 
 
 # Define hardware
-use_cuda = True
+use_cuda = False
 can_use_cuda = use_cuda and torch.cuda.is_available()
 device = torch.device("cuda" if can_use_cuda else "cpu")
 # dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.float
@@ -53,7 +53,6 @@ class SL_CSC_IHT(nn.Module):
 		w_dims = list(self.D_trans.weight.data.size())
 		# Initialise X as zero tensor
 		X1 = Variable(torch.zeros(y_dims[0], w_dims[0], (y_dims[2]-w_dims[2]+1),(y_dims[3]-w_dims[3]+1)).to(device, dtype = dtype))
-		alpha = 0.2 #0.005 # Delete after testing
 		X1_error = np.sum((Y).data.cpu().numpy()**2)
 		X2_error = 0
 		i=0
@@ -159,7 +158,7 @@ class SL_CSC_IHT_Joint(nn.Module):
 		numb_runs = {}
 		# Put data into into lists of tensors by label
 		for i in range(y_dims[0]):
-			temp[str(T[i].item())].append(Y[i])
+			temp[str(int(T[i].item()))].append(Y[i])
 		# Take list of tensors and form stacked tensor, process as go along
 		for key, tensor_list in temp.items():
 			if len(temp[key]) > 0:

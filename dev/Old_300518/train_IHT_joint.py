@@ -40,8 +40,8 @@ model_filename = "SL_CSC_IHT_joint_" + str(np.random.randint(1000000))
 print("Running training of model " + model_filename) 
 
 # Training hyperparameters
-num_epochs = 20 #100
-batch_size = 1000 #500
+num_epochs = 10 #100
+batch_size = 64 #500
 validation_batch_size = 100
 T_DIC = 1
 stride = 1
@@ -56,7 +56,7 @@ p=0.1 #0.5
 # Local dictionary dimensions
 atom_r = 28
 atom_c = 28
-numb_atom = 1000
+numb_atom = 512
 dp_channels = 1 
 
 # Load MNIST

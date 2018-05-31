@@ -28,7 +28,7 @@ can_use_cuda = use_cuda and torch.cuda.is_available()
 device = torch.device("cuda" if can_use_cuda else "cpu")
 # dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.float
 dtype = torch.float
-using_azure = True
+using_azure = False
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # SUPPORTING ALGORITHM FUNCTIONS
@@ -44,16 +44,28 @@ def hard_threshold_joint_k(X, k):
 	Gamma = Gamma.view(X.data.shape)
 	return Gamma, joint_supp
 
-def hard_threshold_k(X, k):
-	Gamma = X.clone()
-	Gamma = Gamma.view(Gamma.data.shape[0], Gamma.data.shape[1]*Gamma.data.shape[2]*Gamma.data.shape[3])
-	m = X.data.shape[1]
-	a,_ = torch.abs(Gamma).data.sort(dim=1,descending=True)
-	T = torch.mm(a[:,k].unsqueeze(1),torch.Tensor(np.ones((1,m))).to(device, dtype=dtype))
-	mask = Variable(torch.Tensor((np.abs(Gamma.data.cpu().numpy())>T.cpu().numpy()) + 0.)).to(device, dtype=dtype)
-	Gamma = Gamma * mask
-	Gamma = Gamma.view(X.data.shape)
-	return Gamma, mask.data.nonzero()
+
+	# JERE VERSION
+	def hard_threshold_k(X, k):
+    Gamma = X.clone()
+    m = X.data.shape[1]
+    a,_ = torch.abs(Gamma).data.sort(dim=1,descending=True)
+    T = torch.mm(a[:,k].unsqueeze(1),torch.Tensor(np.ones((1,m))).to(device))
+    mask = Variable(torch.Tensor((np.abs(Gamma.data.cpu().numpy())>T.cpu().numpy()) + 0.)).to(device)
+    Gamma = Gamma * mask
+    return Gamma
+
+    # MY VERSION
+# def hard_threshold_k(X, k):
+# 	Gamma = X.clone()
+# 	Gamma = Gamma.view(Gamma.data.shape[0], Gamma.data.shape[1]*Gamma.data.shape[2]*Gamma.data.shape[3])
+# 	m = X.data.shape[1]
+# 	a,_ = torch.abs(Gamma).data.sort(dim=1,descending=True)
+# 	T = torch.mm(a[:,k].unsqueeze(1),torch.Tensor(np.ones((1,m))).to(device, dtype=dtype))
+# 	mask = Variable(torch.Tensor((np.abs(Gamma.data.cpu().numpy())>T.cpu().numpy()) + 0.)).to(device, dtype=dtype)
+# 	Gamma = Gamma * mask
+# 	Gamma = Gamma.view(X.data.shape)
+# 	return Gamma, mask.data.nonzero()
 
 def sample_filters(numb_atoms, p, k):
 	numb_active_filters = int(np.maximum(np.ceil(p*numb_atoms), k))
@@ -94,9 +106,12 @@ def train_SL_CSC(CSC, train_loader, test_loader, num_epochs, T_DIC, cost_functio
 	validation_run = 10
 	# Variables to control learning rate
 	mva_numb = 10
-	beta = 0.98
+	beta_lr = 0.1
+	beta_alpha = 0.9
+	iter_slu_lr = 0
+	iter_slu_alpha = 0
 	min_error = 0.5
-	min_learning_rate = 0.00001
+	min_learning_rate = 0.0001
 	min_alpha = 0.01
 	# Prepare plots of filters
 	plt.ion()
@@ -104,7 +119,7 @@ def train_SL_CSC(CSC, train_loader, test_loader, num_epochs, T_DIC, cost_functio
 	# Begin training loop
 	for epoch in range(num_epochs):
 		print("Training epoch " + repr(epoch+1) + " of " + repr(num_epochs))
-		if epoch > 1:
+		if epoch > 2:
 			p=1
 		for i, (inputs, labels) in enumerate(train_loader):
 			print("Batch number " + repr(i+1))
@@ -129,11 +144,14 @@ def train_SL_CSC(CSC, train_loader, test_loader, num_epochs, T_DIC, cost_functio
 				X, SC_error_percent, numb_SC_iterations, filters_selected = CSC.forward(inputs)
 			X = X.detach()
 			sc_error_list = np.append(sc_error_list, SC_error_percent)
-			if counter > mva_numb:
+			if counter > mva_numb and iter_slu_alpha > mva_numb:
+				iter_slu_alpha = 0
 				mva_sc_l2_error = np.sum(sc_error_list[-mva_numb:])/mva_numb
-				if np.abs(SC_error_percent - mva_sc_l2_error) < min_error:
-					CSC.alpha = max(beta*CSC.alpha, min_alpha)
+				if mva_sc_l2_error - SC_error_percent > min_error:
+					CSC.alpha = max(beta_alpha*CSC.alpha, min_alpha)
 					print("Training error has not decreased significantly, alpha reduced to: {0:1.2f}".format(CSC.alpha))
+			else:
+				iter_slu_alpha = iter_slu_alpha + 1
 			# Update filter activations
 			if CSC.forward_type == 'IHT_Joint': 
 				for l in range(len(filters_selected)):
@@ -211,11 +229,15 @@ def train_SL_CSC(CSC, train_loader, test_loader, num_epochs, T_DIC, cost_functio
 			# Ensure that weights for the reverse and forward operations are consistent	
 			CSC.D_trans.weight.data = CSC.D.weight.data.permute(0,1,3,2)
 			# Adjust learning rate if is learning to slowly
-			if counter > mva_numb:
+			if counter > mva_numb and iter_slu_lr > mva_numb:
+				iter_slu_lr = 0
 				mva_l2_error = np.sum(l2_error_list[-mva_numb:])/mva_numb
-				if np.abs(l2_error_percent - mva_l2_error) < min_error:
-					learning_rate = max(beta*learning_rate, min_learning_rate)
+				if mva_l2_error - l2_error_percent > min_error:
+					learning_rate = max(beta_lr*learning_rate, min_learning_rate)
 					print("Training error has not decreased significantly, learning rate reduced to: {0:1.5f}".format(learning_rate))
+			else:
+				iter_slu_lr = iter_slu_lr + 1
+
 			# Reset optimizer
 			optimizer = torch.optim.Adam(CSC_parameters, lr=learning_rate,weight_decay=weight_decay)
 			# Log training data
