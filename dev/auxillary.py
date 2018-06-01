@@ -48,10 +48,14 @@ def load_model(filename):
 	with open(yml_load_path, 'r') as yaml_file:
 	    loaded_model_vars = yaml.load(yaml_file)
 	# Initialise and return CSC
-	model = mds.DictLearnt_IHT(int(loaded_model_vars["m"]), int(loaded_model_vars["K"]))
+	if loaded_model_vars["forward_type"] == "IHT":
+		model = mds.DictLearnt_IHT(int(loaded_model_vars["m"]), int(loaded_model_vars["K"]))
+	elif loaded_model_vars["forward_type"] == "JIHT":
+		model = mds.DictLearnt_JIHT(int(loaded_model_vars["m"]), int(loaded_model_vars["K"]))
+	else:
+		print("Error, forward type not recognised: " + loaded_model_vars["forward_type"])	
 	# Load in model parameters
 	temp = torch.load(torch_load_path)
-	print(temp)
 	model.W.data = torch.load(torch_load_path)
 	# Return model 
 	return model
