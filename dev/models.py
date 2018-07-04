@@ -213,6 +213,16 @@ def dropout(X, mask):
 
 #--------------------------------------------------------------
 
+def batch_norm(X):
+    mean = torch.mean(X, dim=0, keepdim=True)
+    X_batch_norm = X - mean
+    # std = torch.std(X_batch_norm, dim=0, keepdim=True)
+    # std[std ==0] = 1
+    # X_batch_norm = X_batch_norm/std
+    return X_batch_norm, mean, 1
+
+#--------------------------------------------------------------
+
 # this function might be buggy - needs checking
 # def Threshold_Tensor(Tensor_in,K):
 #     Gamma = Tensor_in.clone().detach()
