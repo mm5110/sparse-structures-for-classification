@@ -36,9 +36,9 @@ class ML_ISTA_NET(nn.Module):
         self.Wclass = nn.Linear(m3, 10)
         
         # Initialization
-        self.W1.data = 1/np.sqrt(36) * self.W1.data
-        self.W2.data = 1/np.sqrt(36*m1) * self.W2.data
-        self.W3.data = 1/np.sqrt(16*m2) * self.W3.data
+        self.W1.data = 0.01 * self.W1.data
+        self.W2.data = 0.01 * self.W2.data
+        self.W3.data = 0.01 * self.W3.data
         
     def forward(self, x,T=0,RHO=1):
         
@@ -71,7 +71,7 @@ class ML_ISTA_NET(nn.Module):
 
 ##################################################
 
-####            MultiLayer JISTA NET           ####
+####            MultiLayer J-ISTA NET           ####
 
 ##################################################
 
@@ -96,9 +96,9 @@ class ML_JISTA_NET(nn.Module):
         self.Wclass = nn.Linear(m3, 10)
         
         # Initialization
-        self.W1.data = 1/np.sqrt(36) * self.W1.data
-        self.W2.data = 1/np.sqrt(36*m1) * self.W2.data
-        self.W3.data = 1/np.sqrt(16*m2) * self.W3.data
+        self.W1.data = .1 * self.W1.data
+        self.W2.data = .1 * self.W2.data
+        self.W3.data = .1 * self.W3.data
         
     def forward(self, x,T=0,RHO=1):
         
@@ -220,9 +220,9 @@ class ML_FISTA_NET(nn.Module):
         self.Wclass = nn.Linear(m3, 10)
         
         # Initialization
-        self.W1.data = 1/np.sqrt(36) * self.W1.data
-        self.W2.data = 1/np.sqrt(36*m1) * self.W2.data
-        self.W3.data = 1/np.sqrt(16*m2) * self.W3.data
+        self.W1.data = 0.01 * self.W1.data
+        self.W2.data = 0.01 * self.W2.data
+        self.W3.data = 0.01 * self.W3.data
         
     def forward(self, x,T=0,RHO=1):
         
