@@ -142,6 +142,8 @@ class ML_JISTA_NET(nn.Module):
             label_bin_data[str(int(labels[i].item()))].append(x[i,:,:,:])
         # Turn each list of tensors in the dictionary into a tensor
         for key, tensor_list in label_bin_data.items():
+        	print(key)
+        	print(len(label_bin_data[key]))
             if len(label_bin_data[key]) > 0:
                 sorted_labels[index:index+len(label_bin_data[key])] = int(key)*np.ones(len(label_bin_data[key]))
                 index = index+len(label_bin_data[key])
