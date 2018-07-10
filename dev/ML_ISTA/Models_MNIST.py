@@ -142,6 +142,7 @@ class ML_JISTA_NET(nn.Module):
         for i in range(labels.shape[0]):
             label_bin_data[str(int(labels[i].item()))].append(x[i,:,:,:])
         # Turn each list of tensors in the dictionary into a tensor
+        first = True
         for key, tensor_list in label_bin_data.items():
             # print(key)
             # print(len(label_bin_data[key]))
@@ -150,8 +151,9 @@ class ML_JISTA_NET(nn.Module):
                 index = index+len(label_bin_data[key])
                 data_by_class[key] = torch.stack(label_bin_data[key], dim=0)
                 encoded_by_class[key], scores_by_class[key] = self.joint_forward(data_by_class[key],T,RHO)
-                if key == "0":
+                if first == True:
                     scores = scores_by_class[key]
+                    first = False
                 else:
                     scores = torch.cat((scores, scores_by_class[key]), 0)
         return encoded_by_class, scores, torch.from_numpy(sorted_labels).type(torch.LongTensor)
