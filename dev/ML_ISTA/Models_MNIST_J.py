@@ -122,7 +122,7 @@ class ML_JISTA_NET_J(nn.Module):
             if n_ci>0:
                 X_i = X[b_y==i,:,:,:]
                 x_i = torch.sqrt(torch.sum(X_i**2,dim=0)) # computing norm of rows
-                a_i = F.relu(x_i /n_ci + self.b3 ) 
+                a_i = F.relu(x_i * n_ci + self.b3 ) 
                 X_i = X_i/x_i
                 X_i = X_i * a_i
                 gamma3[b_y==i,:,:,:] = X_i
@@ -147,7 +147,7 @@ class ML_JISTA_NET_J(nn.Module):
                 if n_ci>0:
                     X_i = X[b_y==i,:,:,:]
                     x_i = torch.sqrt(torch.sum(X_i**2,dim=0)) # computing norm of rows
-                    a_i = F.relu(x_i /n_ci+ self.b3 )
+                    a_i = F.relu(x_i * n_ci + self.b3 )
                     X_i = X_i/x_i
                     X_i = X_i * a_i
                     gamma3[b_y==i,:,:,:] = X_i
