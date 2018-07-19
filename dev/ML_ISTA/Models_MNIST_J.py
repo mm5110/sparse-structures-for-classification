@@ -106,7 +106,20 @@ class ML_JISTA_NET_J(nn.Module):
         self.W1.data = 0.01 * self.W1.data
         self.W2.data = 0.01 * self.W2.data
         self.W3.data = 0.01 * self.W3.data
-        
+    
+    def joint_relu(self,X,b_y):
+        gamma3 = torch.zeros(X.shape)
+        if X.device.type=='cuda': gamma3 = gamma3.cuda()
+        for i in range(10):
+            n_ci = float(torch.sum(b_y==i))
+            if n_ci>0:
+                X_i = X[b_y==i,:,:,:]
+                x_i = torch.sqrt(torch.sum(X_i**2,dim=0)) / n_ci # computing norm of rows
+                a_i = F.relu(x_i + self.b3 ) 
+                X_i = X_i/x_i
+                X_i = X_i * a_i
+                gamma3[b_y==i,:,:,:] = F.relu(X_i)
+        return gamma3
 
     
     def forward_joint(self, x, b_y,T=0,RHO=1):
@@ -115,17 +128,7 @@ class ML_JISTA_NET_J(nn.Module):
         gamma1 = F.relu(F.conv2d(x,self.W1, stride = self.strd1) + self.b1)  
         gamma2 = F.relu(F.conv2d(gamma1,self.W2, stride = self.strd2) + self.b2) 
         X = F.conv2d(gamma2,self.W3, stride = self.strd3)
-        gamma3 = torch.zeros(X.shape)
-        if X.device.type=='cuda': gamma3 = gamma3.cuda()
-        for i in range(10):
-            n_ci = float(torch.sum(b_y==i))
-            if n_ci>0:
-                X_i = X[b_y==i,:,:,:]
-                x_i = torch.sqrt(torch.sum(X_i**2,dim=0)) # computing norm of rows
-                a_i = F.relu(x_i * n_ci + self.b3 ) 
-                X_i = X_i/x_i
-                X_i = X_i * a_i
-                gamma3[b_y==i,:,:,:] = X_i
+        gamma3 = self.joint_relu(X,b_y)
      
         for _ in  range(T):
             
@@ -141,16 +144,7 @@ class ML_JISTA_NET_J(nn.Module):
             gamma2 = F.relu( (gamma2 - F.conv2d( F.conv_transpose2d(gamma2,self.W2, stride = self.strd2) - gamma1, self.W2, stride = self.strd2)) + self.b2) 
             
             X = (gamma3 - F.conv2d( F.conv_transpose2d(gamma3,self.W3, stride = self.strd3) - gamma2, self.W3, stride = self.strd3))
-            gamma3 = gamma3*0
-            for i in range(10):
-                n_ci = float(torch.sum(b_y==i))
-                if n_ci>0:
-                    X_i = X[b_y==i,:,:,:]
-                    x_i = torch.sqrt(torch.sum(X_i**2,dim=0)) # computing norm of rows
-                    a_i = F.relu(x_i * n_ci + self.b3 )
-                    X_i = X_i/x_i
-                    X_i = X_i * a_i
-                    gamma3[b_y==i,:,:,:] = X_i
+            gamma3 = self.joint_relu(X,b_y)
         
         # classifier
         gamma = gamma3.view(gamma3.shape[0],gamma3.shape[1]*gamma3.shape[2]*gamma3.shape[3])
