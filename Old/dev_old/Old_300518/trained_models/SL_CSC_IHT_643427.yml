@@ -1,8 +1,0 @@
-alpha: 0.010466952660547223
-atom_c: 28
-atom_r: 28
-dp_channels: 1
-forward_type: IHT
-k: 50
-numb_atom: 512
-stride: 1
