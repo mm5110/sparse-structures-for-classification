@@ -20,11 +20,11 @@ class ML_ISTA_NET(nn.Module):
         super(ML_ISTA_NET, self).__init__()
         
         # Convolutional Filters
-        self.W1 = nn.Parameter(torch.randn(m1,1,6,6), requires_grad=True)
+        self.W1 = nn.Parameter(torch.randn(m1,3,6,6), requires_grad=True)
         self.strd1 = 2;
         self.W2 = nn.Parameter(torch.randn(m2,m1,6,6), requires_grad=True)
         self.strd2 = 2;
-        self.W3 = nn.Parameter(torch.randn(m3,m2,4,4), requires_grad=True)
+        self.W3 = nn.Parameter(torch.randn(m3,m2,5,5), requires_grad=True)
         self.strd3 = 1;
         
         # Biases / Thresholds
@@ -36,9 +36,9 @@ class ML_ISTA_NET(nn.Module):
         self.Wclass = nn.Linear(m3, 10)
         
         # Initialization
-        self.W1.data = 1/np.sqrt(3*36) * self.W1.data
-        self.W2.data = 1/np.sqrt(m1*36) * self.W2.data
-        self.W3.data = 1/np.sqrt(m2*36) * self.W3.data
+        self.W1.data = 0.01 * self.W1.data
+        self.W2.data = 0.01 * self.W2.data
+        self.W3.data = 0.01 * self.W3.data
         
     def forward(self, x,T=0,RHO=1):
         
@@ -86,11 +86,11 @@ class ML_JISTA_NET(nn.Module):
         super(ML_JISTA_NET, self).__init__()
         
         # Convolutional Filters
-        self.W1 = nn.Parameter(torch.randn(m1,1,6,6), requires_grad=True)
+        self.W1 = nn.Parameter(torch.randn(m1,3,6,6), requires_grad=True)
         self.strd1 = 2;
         self.W2 = nn.Parameter(torch.randn(m2,m1,6,6), requires_grad=True)
         self.strd2 = 2;
-        self.W3 = nn.Parameter(torch.randn(m3,m2,4,4), requires_grad=True)
+        self.W3 = nn.Parameter(torch.randn(m3,m2,5,5), requires_grad=True)
         self.strd3 = 1;
         
         # Biases / Thresholds
@@ -102,9 +102,9 @@ class ML_JISTA_NET(nn.Module):
         self.Wclass = nn.Linear(m3, 10)
         
         # Initialization
-        self.W1.data = 1/np.sqrt(3*36) * self.W1.data
-        self.W2.data = 1/np.sqrt(m1*36) * self.W2.data
-        self.W3.data = 1/np.sqrt(m2*36) * self.W3.data
+        self.W1.data = 0.01 * self.W1.data
+        self.W2.data = 0.01 * self.W2.data
+        self.W3.data = 0.01 * self.W3.data
     
     def joint_relu(self,X,b_y):
         gamma3 = torch.zeros(X.shape)
@@ -195,11 +195,11 @@ class ML_JISTA_NET_J(nn.Module):
         super(ML_JISTA_NET_J, self).__init__()
         
         # Convolutional Filters
-        self.W1 = nn.Parameter(torch.randn(m1,1,6,6), requires_grad=True)
+        self.W1 = nn.Parameter(torch.randn(m1,3,6,6), requires_grad=True)
         self.strd1 = 2;
         self.W2 = nn.Parameter(torch.randn(m2,m1,6,6), requires_grad=True)
         self.strd2 = 2;
-        self.W3 = nn.Parameter(torch.randn(m3,m2,4,4), requires_grad=True)
+        self.W3 = nn.Parameter(torch.randn(m3,m2,5,5), requires_grad=True)
         self.strd3 = 1;
         
         # Biases / Thresholds
@@ -211,9 +211,9 @@ class ML_JISTA_NET_J(nn.Module):
         self.Wclass = nn.Linear(m3, 10)
         
         # Initialization
-        self.W1.data = 1/np.sqrt(3*36) * self.W1.data
-        self.W2.data = 1/np.sqrt(m1*36) * self.W2.data
-        self.W3.data = 1/np.sqrt(m2*36) * self.W3.data
+        self.W1.data = 0.01 * self.W1.data
+        self.W2.data = 0.01 * self.W2.data
+        self.W3.data = 0.01 * self.W3.data
     
     def joint_relu(self,X,b_y):
         gamma3 = torch.zeros(X.shape)
