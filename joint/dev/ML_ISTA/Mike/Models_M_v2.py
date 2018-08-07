@@ -106,7 +106,7 @@ class ML_JNN_ReLU(nn.Module):
                 X_i = X[b_y==i,:,:,:]
                 x_i = torch.sqrt(torch.sum(X_i**2,dim=0)) # computing norm of rows
 #                 Z_i = F.relu(X_i*((n_ci) + self.b3/x_i))
-                Z_i = F.relu(X_i*(1 + self.b3/(math.sqrt(n_ci)*x_i)))
+                Z_i = F.relu(X_i*(1 + math.sqrt(n_ci)*self.b3/x_i))
                 gamma3[b_y==i,:,:,:] = Z_i
         
         # classifier
